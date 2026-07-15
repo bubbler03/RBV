@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HUB SYSTEM</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+
+    :root {
+      --bg:       #0b0f1a;
+      --panel:    #111827;
+      --panel2:   #1a2235;
+      --border:   #1f2d45;
+      --orange:   #f97316;
+      --orange2:  #ea580c;
+      --text:     #e2e8f0;
+      --muted:    #64748b;
+      --red:      #dc2626;
+      --green:    #16a34a;
+      --locked:   #374151;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── HEADER ── */
+    header {
+      display: flex;
+      align-items: center;
+      padding: 0 2rem;
+      height: 56px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      gap: 2rem;
+    }
+
+    .brand {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: var(--orange);
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0;
+      flex: 1;
+      justify-content: center;
+    }
+
+    .tab {
+      padding: 0 1.5rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all .2s;
+    }
+    .tab.active { color: var(--orange); border-bottom-color: var(--orange); }
+
+    .motor-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .motor-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--red);
+      transition: background .3s;
+    }
+    .motor-dot.on { background: var(--green); }
+
+    .btn-enable  { background: var(--green); }
+    .btn-disable { background: var(--locked); }
+
+    .btn-estop {
+      background: var(--red);
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 0.5rem 1.2rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-estop:hover { background: #b91c1c; }
+
+    /* ── MAIN ── */
+    main {
+      flex: 1;
+      padding: 1.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      max-width: 1300px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* HOME ALL AXES row */
+    .home-row {
+      display: flex;
+      justify-content: flex-end;
+      gap: 1rem;
+    }
+
+    .btn-home-all {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: transparent;
+      border: 1px solid var(--orange);
+      color: var(--orange);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.6rem 1.4rem;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .btn-home-all:hover { background: rgba(249,115,22,.1); }
+    .btn-home-all:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ── TWO COLUMN GRID ── */
+    .axis-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem 1.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--orange);
+      opacity: .7;
+    }
+
+    .panel-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .panel-sub {
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+    }
+
+    .badge {
+      margin-left: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      padding: 0.2rem 0.6rem;
+      border-radius: 3px;
+      text-transform: uppercase;
+    }
+    .badge-ready  { background: rgba(22,163,74,.2);  color: #4ade80; border: 1px solid #16a34a; }
+    .badge-busy   { background: rgba(249,115,22,.2); color: var(--orange); border: 1px solid var(--orange); animation: pulse 1s infinite; }
+    .badge-locked { background: rgba(55,65,81,.4);  color: var(--muted); border: 1px solid var(--locked); }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+    .panel-body { padding: 1.2rem 1.5rem; display: flex; flex-direction: column; gap: 1.2rem; }
+
+    /* Position display */
+    .pos-display {
+      display: flex;
+      gap: 2rem;
+    }
+
+    .pos-block {}
+    .pos-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.2rem;
+    }
+    .pos-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2.4rem;
+      font-weight: 700;
+      color: var(--orange);
+      line-height: 1;
+    }
+    .pos-unit { font-size: 1rem; color: var(--muted); margin-left: 4px; }
+
+    .pos-val.locked-val { color: var(--muted); }
+
+    /* Step size */
+    .step-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .step-btns { display: flex; gap: 0.5rem; }
+    .step-btn {
+      flex: 1;
+      padding: 0.5rem;
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-align: center;
+      transition: all .15s;
+    }
+    .step-btn.active { border-color: var(--orange); color: var(--orange); background: rgba(249,115,22,.1); }
+    .step-btn:disabled { opacity: .3; cursor: not-allowed; }
+
+    /* Jog buttons */
+    .jog-row { display: flex; gap: 0.75rem; }
+    .btn-jog {
+      flex: 1;
+      padding: 0.9rem;
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: all .15s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .btn-jog span { font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+    .btn-jog:hover:not(:disabled) { border-color: var(--orange); background: rgba(249,115,22,.08); }
+    .btn-jog:active:not(:disabled) { transform: scale(.97); }
+    .btn-jog:disabled { opacity: .25; cursor: not-allowed; }
+
+    /* Panel with two columns: left=controls, right=visualization */
+    .panel-cols {
+      display: flex;
+      gap: 1rem;
+    }
+    .panel-controls { flex: 1; display: flex; flex-direction: column; gap: 1rem; }
+    .panel-viz { width: 180px; flex-shrink: 0; }
+
+    /* SVG Visualization */
+    .viz-box {
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75rem 0.5rem 0.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .viz-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--orange);
+      text-align: center;
+    }
+    .viz-status {
+      font-size: 0.6rem;
+      color: var(--muted);
+      text-align: center;
+      font-style: italic;
+    }
+    .viz-box.locked-viz .viz-label { color: var(--muted); }
+
+    /* ── HOMING PANEL ── */
+    .homing-panel {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+    }
+
+    .homing-left {
+      padding: 1.2rem 1.5rem;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .homing-right {
+      padding: 1.2rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .homing-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .homing-phase {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.7rem 1rem;
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.8rem;
+    }
+    .phase-icon { font-size: 1.1rem; width: 20px; text-align: center; }
+    .phase-text { flex: 1; }
+    .phase-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: 0.15rem 0.5rem;
+      border-radius: 3px;
+      text-transform: uppercase;
+    }
+    .phase-idle    { color: var(--muted); border: 1px solid var(--border); }
+    .phase-active  { color: var(--orange); border: 1px solid var(--orange); background: rgba(249,115,22,.1); animation: pulse 1s infinite; }
+    .phase-done    { color: #4ade80; border: 1px solid #16a34a; background: rgba(22,163,74,.1); }
+
+    .work-area-display {
+      padding: 0.75rem 1rem;
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    .wa-label { font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+    .wa-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #4ade80;
+    }
+
+    /* ── BUTTONS ── */
+    .btn {
+      padding: 0.65rem 1.4rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .btn:disabled { opacity: .3; cursor: not-allowed; }
+    .btn-orange { background: var(--orange); color: #fff; }
+    .btn-orange:hover:not(:disabled) { background: var(--orange2); }
+    .btn-outline-orange { background: transparent; border: 1px solid var(--orange); color: var(--orange); }
+    .btn-outline-orange:hover:not(:disabled) { background: rgba(249,115,22,.1); }
+    .btn-stop-sm { background: var(--red); color: #fff; }
+    .btn-stop-sm:hover:not(:disabled) { background: #b91c1c; }
+    .btn-row { display: flex; gap: 0.75rem; align-items: center; }
+
+    /* ── AUTOMATOR ── */
+    .automator {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--orange);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .automator-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .automator-icon { font-size: 1.4rem; }
+
+    .automator-title {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .telemetry {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tele-item {
+      flex: 1;
+      padding: 0.75rem 1.5rem;
+      border-right: 1px solid var(--border);
+    }
+    .tele-item:last-child { border-right: none; }
+    .tele-label { font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+    .tele-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1rem;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+    .tele-val.orange { color: var(--orange); }
+    .tele-val.green  { color: #4ade80; }
+
+    .automator-body {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0;
+    }
+
+    .automator-controls {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+      border-right: 1px solid var(--border);
+    }
+
+    .slider-row { display: flex; flex-direction: column; gap: 0.5rem; }
+    .slider-top { display: flex; justify-content: space-between; align-items: center; }
+    .slider-label { font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+    .slider-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      color: var(--orange);
+    }
+
+    input[type=range] {
+      width: 100%;
+      accent-color: var(--orange);
+      height: 4px;
+      cursor: pointer;
+    }
+
+    .slider-ticks {
+      display: flex;
+      justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6rem;
+      color: var(--muted);
+    }
+
+    .iter-row { display: flex; align-items: center; gap: 1rem; }
+    .iter-label { font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); flex-shrink: 0; }
+
+    input[type=number] {
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.1rem;
+      padding: 0.5rem 0.75rem;
+      width: 90px;
+      text-align: center;
+    }
+
+    .btn-start-loop {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      background: var(--orange);
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 0.9rem 2rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      width: 100%;
+      transition: background .2s;
+    }
+    .btn-start-loop:hover:not(:disabled) { background: var(--orange2); }
+    .btn-start-loop:disabled { opacity: .35; cursor: not-allowed; }
+
+    .progress-section { display: flex; flex-direction: column; gap: 0.5rem; }
+    .progress-info { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); }
+    .progress-bar-bg { background: var(--panel2); border-radius: 4px; height: 8px; overflow: hidden; }
+    .progress-bar { background: var(--orange); height: 100%; border-radius: 4px; transition: width .4s ease; }
+
+    .automator-viz {
+      width: 220px;
+      padding: 1.5rem 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .loop-status-ring {
+      position: relative;
+      width: 120px;
+      height: 120px;
+    }
+
+    .loop-status-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .loop-status-main {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .loop-status-sub { font-size: 0.6rem; color: var(--muted); letter-spacing: 0.08em; }
+    .loop-seq-label { font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 0.75rem 2rem;
+      text-align: center;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* responsive */
+    @media (max-width: 900px) {
+      .axis-grid { grid-template-columns: 1fr; }
+      .homing-panel { grid-template-columns: 1fr; }
+      .homing-left { border-right: none; border-bottom: 1px solid var(--border); }
+      .automator-body { grid-template-columns: 1fr; }
+      .automator-viz { width: 100%; border-top: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="brand">Hub System</div>
+  <div class="tabs">
+    <div class="tab active">Manual</div>
+    <div class="tab">Auto</div>
+    <div class="tab">Settings</div>
+  </div>
+  <div class="motor-toggle">
+    <div class="motor-dot" id="motor-dot"></div>
+    <span id="motor-text">Inaktiv</span>
+    <button class="btn btn-enable" style="padding:.4rem .9rem;font-size:.7rem;border-radius:3px;margin-left:.5rem;" onclick="enableMotor()">Ein</button>
+    <button class="btn btn-disable" style="padding:.4rem .9rem;font-size:.7rem;border-radius:3px;color:#fff;" onclick="disableMotor()">Aus</button>
+  </div>
+  <button class="btn-estop" onclick="emergencyStop()">⬛ Emergency Stop</button>
+</header>
+
+<main>
+
+  <!-- HOME ROW -->
+  <div class="home-row">
+    <button class="btn-home-all" id="btn-home-all" onclick="startHoming()">
+      🏠 Home All Axes
+    </button>
+    <button class="btn btn-stop-sm" id="btn-home-stop" onclick="stopHoming()" disabled style="font-size:.7rem;letter-spacing:.08em;">Stop</button>
+  </div>
+
+  <!-- ── AXIS GRID ── -->
+  <div class="axis-grid">
+
+    <!-- PRIMARY PLANE (X+Y) -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-num">01</span>
+        <span class="panel-title">Primary Plane</span>
+        <span class="panel-sub">(X+Y)</span>
+        <span class="badge badge-ready" id="badge-xy">READY</span>
+      </div>
+      <div class="panel-body">
+        <div class="panel-cols">
+          <div class="panel-controls">
+            <!-- Position -->
+            <div>
+              <div class="pos-label">Synchronous Movement · Position Z-Sync</div>
+              <div style="display:flex;gap:1.5rem;align-items:baseline;">
+                <div>
+                  <div class="pos-label" style="font-size:.55rem;">X-AXIS</div>
+                  <div class="pos-val" id="pos-x">0<span class="pos-unit">st</span></div>
+                </div>
+                <div>
+                  <div class="pos-label" style="font-size:.55rem;">Y-AXIS</div>
+                  <div class="pos-val" id="pos-y">0<span class="pos-unit">st</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step size -->
+            <div>
+              <div class="step-label">Step Size Selection</div>
+              <div class="step-btns">
+                <div class="step-btn active" onclick="setSteps(1,this)">1</div>
+                <div class="step-btn" onclick="setSteps(10,this)">10</div>
+                <div class="step-btn" onclick="setSteps(100,this)">100</div>
+                <div class="step-btn" onclick="setSteps(200,this)">200</div>
+              </div>
+            </div>
+
+            <!-- Jog -->
+            <div class="jog-row">
+              <button class="btn-jog" onclick="jogXY(-1)" id="jog-up">
+                ∧<span>Move Up</span>
+              </button>
+              <button class="btn-jog" onclick="jogXY(1)" id="jog-down">
+                ∨<span>Move Down</span>
+              </button>
+            </div>
+
+            <!-- Speed -->
+            <div>
+              <div class="slider-top" style="margin-bottom:.4rem;">
+                <div class="slider-label">Feedrate</div>
+                <div class="slider-val" id="speed-val">2.0 ms</div>
+              </div>
+              <input type="range" id="speed-slider" min="1" max="20" value="17" oninput="updateSpeed(this.value)">
+            </div>
+          </div>
+
+          <!-- Visualization X+Y -->
+          <div class="panel-viz">
+            <div class="viz-box">
+              <div class="viz-label">Real-Time Visualization</div>
+              <svg id="viz-xy" width="160" height="240" viewBox="0 0 160 240">
+                <!-- Pillars -->
+                <rect x="10"  y="10" width="14" height="220" rx="3" fill="#1f2d45"/>
+                <rect x="136" y="10" width="14" height="220" rx="3" fill="#1f2d45"/>
+                <rect x="38"  y="10" width="10" height="220" rx="2" fill="#162030"/>
+                <rect x="112" y="10" width="10" height="220" rx="2" fill="#162030"/>
+                <!-- Top plate -->
+                <rect x="5" y="5" width="150" height="12" rx="3" fill="#1f2d45"/>
+                <!-- Bottom plate -->
+                <rect x="5" y="223" width="150" height="12" rx="3" fill="#1f2d45"/>
+                <!-- Lead screws -->
+                <line x1="48"  y1="20" x2="48"  y2="223" stroke="#0f1a2a" stroke-width="2" stroke-dasharray="4,3"/>
+                <line x1="112" y1="20" x2="112" y2="223" stroke="#0f1a2a" stroke-width="2" stroke-dasharray="4,3"/>
+                <!-- Platform -->
+                <rect id="platform-xy" x="20" y="110" width="120" height="12" rx="3" fill="#f97316"/>
+                <!-- Platform glow -->
+                <rect id="platform-xy-glow" x="20" y="110" width="120" height="12" rx="3" fill="#f97316" opacity="0.25" transform="scale(1.02) translate(-1.6,-0.6)"/>
+                <!-- Active label -->
+                <text id="platform-xy-label" x="80" y="104" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#f97316" letter-spacing="1">ACTIVE PLATFORM</text>
+              </svg>
+              <div class="viz-status" id="viz-xy-status">Status: Idle</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DEPTH & ROTATION (Z+A) — LOCKED -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-num">02</span>
+        <span class="panel-title">Depth &amp; Rotation</span>
+        <span class="panel-sub">(Z+A)</span>
+        <span class="badge badge-locked">LOCKED</span>
+      </div>
+      <div class="panel-body">
+        <div class="panel-cols">
+          <div class="panel-controls">
+            <div>
+              <div class="pos-label">Z-Axis &amp; A-Rotation</div>
+              <div style="display:flex;gap:1.5rem;align-items:baseline;">
+                <div>
+                  <div class="pos-label" style="font-size:.55rem;">Z-AXIS</div>
+                  <div class="pos-val locked-val">—<span class="pos-unit">st</span></div>
+                </div>
+                <div>
+                  <div class="pos-label" style="font-size:.55rem;">A-AXIS</div>
+                  <div class="pos-val locked-val">—<span class="pos-unit">st</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="step-label">Step Size Selection</div>
+              <div class="step-btns">
+                <div class="step-btn" style="opacity:.3;" disabled>1</div>
+                <div class="step-btn active" style="opacity:.3;" disabled>10</div>
+                <div class="step-btn" style="opacity:.3;" disabled>100</div>
+                <div class="step-btn" style="opacity:.3;" disabled>200</div>
+              </div>
+            </div>
+
+            <div class="jog-row">
+              <button class="btn-jog" disabled>∧<span>Move Up</span></button>
+              <button class="btn-jog" disabled>∨<span>Move Down</span></button>
+            </div>
+
+            <div>
+              <div class="slider-top" style="margin-bottom:.4rem;">
+                <div class="slider-label">Feedrate</div>
+                <div class="slider-val" style="color:var(--muted);">— ms</div>
+              </div>
+              <input type="range" min="1" max="20" value="5" disabled style="opacity:.3;cursor:not-allowed;">
+            </div>
+          </div>
+
+          <!-- Visualization Z+A locked -->
+          <div class="panel-viz">
+            <div class="viz-box locked-viz">
+              <div class="viz-label">Real-Time Visualization</div>
+              <svg width="160" height="240" viewBox="0 0 160 240" opacity="0.35">
+                <rect x="10"  y="10" width="14" height="220" rx="3" fill="#1f2d45"/>
+                <rect x="136" y="10" width="14" height="220" rx="3" fill="#1f2d45"/>
+                <rect x="38"  y="10" width="10" height="220" rx="2" fill="#162030"/>
+                <rect x="112" y="10" width="10" height="220" rx="2" fill="#162030"/>
+                <rect x="5"  y="5"   width="150" height="12" rx="3" fill="#1f2d45"/>
+                <rect x="5"  y="223" width="150" height="12" rx="3" fill="#1f2d45"/>
+                <line x1="48"  y1="20" x2="48"  y2="223" stroke="#0f1a2a" stroke-width="2" stroke-dasharray="4,3"/>
+                <line x1="112" y1="20" x2="112" y2="223" stroke="#0f1a2a" stroke-width="2" stroke-dasharray="4,3"/>
+                <rect x="20" y="116" width="120" height="12" rx="3" fill="#4b5563"/>
+                <text x="80" y="110" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#4b5563" letter-spacing="1">LOCKED</text>
+              </svg>
+              <div class="viz-status">Status: Locked</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── HOMING PANEL ── -->
+  <div class="panel homing-panel">
+    <div class="homing-left">
+      <div class="homing-title">🏠 Homing Sequence</div>
+
+      <!-- Phase 1 -->
+      <div class="homing-phase" id="phase1-box">
+        <div class="phase-icon">⬆</div>
+        <div class="phase-text">
+          <div style="font-size:.8rem;font-weight:600;">Phase 1 — Oberer Anschlag</div>
+          <div style="font-size:.7rem;color:var(--muted);">Fährt nach oben · Stop setzt Nullpunkt</div>
+        </div>
+        <div class="phase-badge phase-idle" id="phase1-badge">IDLE</div>
+      </div>
+
+      <!-- Phase 2 -->
+      <div class="homing-phase" id="phase2-box">
+        <div class="phase-icon">⬇</div>
+        <div class="phase-text">
+          <div style="font-size:.8rem;font-weight:600;">Phase 2 — Unterer Anschlag</div>
+          <div style="font-size:.7rem;color:var(--muted);">Fährt nach unten · Stop setzt Arbeitsbereich</div>
+        </div>
+        <div class="phase-badge phase-idle" id="phase2-badge">IDLE</div>
+      </div>
+    </div>
+
+    <div class="homing-right">
+      <div class="homing-title">Steuerung</div>
+      <div class="btn-row" style="margin-bottom:.5rem;">
+        <button class="btn btn-orange" id="btn-homing-start2" onclick="startHoming()" style="flex:1;">▶ Homing starten</button>
+        <button class="btn btn-stop-sm" id="btn-homing-stop2" onclick="stopHoming()" disabled style="flex:1;">⬛ Stop</button>
+      </div>
+      <div class="homing-title" style="margin-top:.5rem;">Arbeitsbereich</div>
+      <div class="work-area-display">
+        <div class="wa-label">Gemessene Distanz</div>
+        <div class="wa-val" id="wa-val">—</div>
+        <div style="font-size:.65rem;color:var(--muted);margin-top:2px;">Schritte</div>
+      </div>
+      <div style="font-size:.7rem;color:var(--muted);line-height:1.5;" id="homing-hint">
+        Starte Homing mit dem Button oben rechts.<br>
+        Phase 1: Motor fährt hoch → Stop drücken.<br>
+        Phase 2: Motor fährt runter → Stop drücken.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── HUBLOOP AUTOMATOR ── -->
+  <div class="automator" id="automator-section">
+    <div class="automator-header">
+      <div class="automator-icon">⚡</div>
+      <div class="automator-title">Hubloop Automator</div>
+    </div>
+
+    <div class="telemetry">
+      <div class="tele-item">
+        <div class="tele-label">Versorgung</div>
+        <div class="tele-val orange">24.0 V</div>
+      </div>
+      <div class="tele-item">
+        <div class="tele-label">Arbeitsbereich</div>
+        <div class="tele-val green" id="tele-wa">— Steps</div>
+      </div>
+      <div class="tele-item">
+        <div class="tele-label">Feedrate</div>
+        <div class="tele-val orange" id="tele-feed">2.0 ms/step</div>
+      </div>
+      <div class="tele-item">
+        <div class="tele-label">Loop Status</div>
+        <div class="tele-val" id="tele-status" style="color:var(--muted);">IDLE</div>
+      </div>
+    </div>
+
+    <div class="automator-body">
+      <div class="automator-controls">
+
+        <!-- Travel distance slider -->
+        <div class="slider-row">
+          <div class="slider-top">
+            <div class="slider-label">Travel Distance</div>
+            <div class="slider-val" id="travel-val">100%</div>
+          </div>
+          <input type="range" id="travel-slider" min="5" max="100" value="100" oninput="updateTravel(this.value)">
+          <div class="slider-ticks">
+            <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+          </div>
+        </div>
+
+        <!-- Iterations -->
+        <div class="iter-row">
+          <div class="iter-label">Loop Iterations</div>
+          <input type="number" id="loop-cycles" min="1" value="5">
+        </div>
+
+        <!-- Progress -->
+        <div class="progress-section" id="progress-section" style="opacity:.4;">
+          <div class="progress-info">
+            <span id="prog-text">Bereit</span>
+            <span id="prog-pct">0%</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar" id="prog-bar" style="width:0%"></div>
+          </div>
+        </div>
+
+        <!-- Start / Stop -->
+        <div class="btn-row">
+          <button class="btn-start-loop" id="btn-loop-start" onclick="startLoop()" disabled>
+            ▶ Start Loop
+          </button>
+          <button class="btn btn-stop-sm" id="btn-loop-stop" onclick="stopLoop()" disabled style="padding:.9rem 1.2rem;font-size:.8rem;">■</button>
+        </div>
+
+      </div>
+
+      <!-- Loop visualization -->
+      <div class="automator-viz">
+        <div class="loop-seq-label">Loop Sequence</div>
+        <div class="loop-status-ring">
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="#1f2d45" stroke-width="8"/>
+            <circle cx="60" cy="60" r="52" fill="none" stroke="#f97316" stroke-width="8"
+              stroke-dasharray="326.7" id="loop-ring"
+              stroke-dashoffset="326.7"
+              stroke-linecap="round"
+              transform="rotate(-90 60 60)"
+              style="transition: stroke-dashoffset .4s ease;"/>
+          </svg>
+          <div class="loop-status-text">
+            <div class="loop-status-main" id="loop-main">IDLE</div>
+            <div class="loop-status-sub" id="loop-sub">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>Hub System Control · System Active · v1.0.0</footer>
+
+<script>
+  let steps = 10, delay = 0.002, moving = false, heightPct = 100;
+
+  // ── Speed ──
+  function updateSpeed(val) {
+    delay = parseFloat((0.0105 - val * 0.0005).toFixed(4));
+    document.getElementById("speed-val").textContent = (delay * 1000).toFixed(1) + " ms";
+    document.getElementById("tele-feed").textContent = (delay * 1000).toFixed(1) + " ms/step";
+  }
+
+  // ── Step size ──
+  function setSteps(n, el) {
+    steps = n;
+    document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
+    if (el) el.classList.add('active');
+  }
+
+  // ── Travel distance ──
+  function updateTravel(val) {
+    heightPct = parseInt(val);
+    document.getElementById("travel-val").textContent = heightPct + "%";
+  }
+
+  // ── Motor ──
+  async function enableMotor()  { updateStatus(await (await fetch("/enable",  {method:"POST"})).json()); }
+  async function disableMotor() { updateStatus(await (await fetch("/disable", {method:"POST"})).json()); }
+
+  async function emergencyStop() {
+    await fetch("/emergency_stop", {method:"POST"});
+    const d = await (await fetch("/status")).json();
+    updateStatus(d);
+  }
+
+  // ── Jog ──
+  async function jogXY(dir) {
+    if (moving) return;
+    moving = true;
+    setBadgeXY("MOVING");
+    const r = await fetch("/move_both", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({steps, dir_x: dir, dir_y: dir, delay})
+    });
+    moving = false;
+    if (r.ok) updateStatus(await r.json());
+    else setBadgeXY("READY");
+  }
+
+  // ── Homing ──
+  function setHomingButtons(started) {
+    document.getElementById("btn-home-all").disabled      = started;
+    document.getElementById("btn-home-stop").disabled     = !started;
+    document.getElementById("btn-homing-start2").disabled = started;
+    document.getElementById("btn-homing-stop2").disabled  = !started;
+  }
+
+  async function startHoming() {
+    setHomingButtons(true);
+    await fetch("/home", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({pair:"xy"})});
+  }
+
+  async function stopHoming() {
+    await fetch("/stop_homing", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({pair:"xy"})});
+    // Buttons bleiben aktiv bis Phase 2 abgeschlossen (done)
+  }
+
+  // ── Loop ──
+  async function startLoop() {
+    const cycles = parseInt(document.getElementById("loop-cycles").value) || 1;
+    const r = await fetch("/start_loop", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({cycles, delay, height_pct: heightPct})
+    });
+    if (r.ok) {
+      document.getElementById("btn-loop-start").disabled = true;
+      document.getElementById("btn-loop-stop").disabled = false;
+    }
+  }
+
+  async function stopLoop() {
+    await fetch("/stop_loop", {method:"POST"});
+  }
+
+  // ── Update UI ──
+  function setBadgeXY(text) {
+    const b = document.getElementById("badge-xy");
+    b.className = "badge " + (text === "READY" ? "badge-ready" : text === "LOCKED" ? "badge-locked" : "badge-busy");
+    b.textContent = text;
+  }
+
+  function updateVizXY(d) {
+    const workArea = d.homing.xy.work_area;
+    const pos = d.x;
+    // pos=0 → top, pos=workArea → bottom
+    let pct = workArea > 0 ? Math.max(0, Math.min(1, pos / workArea)) : 0;
+    // SVG: top=17px, bottom=223px, travel=206px, platform height=12px
+    const travel = 194;
+    const topY   = 17;
+    const y = topY + pct * travel;
+    const p = document.getElementById("platform-xy");
+    const g = document.getElementById("platform-xy-glow");
+    const l = document.getElementById("platform-xy-label");
+    if (p) {
+      p.setAttribute("y", y);
+      g.setAttribute("y", y - 0.6);
+      l.setAttribute("y", y - 4);
+    }
+
+    const status = d.busy ? "Moving" : d.homing.xy.status === "homing_up" ? "Homing ↑" : d.homing.xy.status === "homing_down" ? "Homing ↓" : "Synchronized Tracking";
+    document.getElementById("viz-xy-status").textContent = "Status: " + status;
+  }
+
+  function updateHomingUI(h) {
+    const p1b = document.getElementById("phase1-badge");
+    const p2b = document.getElementById("phase2-badge");
+
+    if (h.status === "homing_up") {
+      p1b.className = "phase-badge phase-active"; p1b.textContent = "ACTIVE";
+      p2b.className = "phase-badge phase-idle";   p2b.textContent = "WAIT";
+      document.getElementById("homing-hint").textContent = "Motor fährt nach oben → Stop drücken wenn Anschlag erreicht.";
+      setHomingButtons(true);
+    } else if (h.status === "homing_down") {
+      p1b.className = "phase-badge phase-done";   p1b.textContent = "DONE ✓";
+      p2b.className = "phase-badge phase-active"; p2b.textContent = "ACTIVE";
+      document.getElementById("homing-hint").textContent = "Nullpunkt gesetzt. Motor fährt nach unten → Stop drücken wenn Anschlag erreicht.";
+      setHomingButtons(true);
+    } else if (h.status === "done") {
+      p1b.className = "phase-badge phase-done"; p1b.textContent = "DONE ✓";
+      p2b.className = "phase-badge phase-done"; p2b.textContent = "DONE ✓";
+      document.getElementById("wa-val").textContent = h.work_area;
+      document.getElementById("tele-wa").textContent = h.work_area + " Steps";
+      document.getElementById("homing-hint").textContent = "Homing abgeschlossen. Arbeitsbereich: " + h.work_area + " Schritte.";
+      setHomingButtons(false);
+      document.getElementById("btn-loop-start").disabled = false;
+      document.getElementById("progress-section").style.opacity = "1";
+    }
+  }
+
+  function updateLoopUI(lp) {
+    const ring    = document.getElementById("loop-ring");
+    const mainTxt = document.getElementById("loop-main");
+    const subTxt  = document.getElementById("loop-sub");
+    const tele    = document.getElementById("tele-status");
+
+    if (lp.running) {
+      const pct = lp.total > 0 ? lp.current / lp.total : 0;
+      const offset = 326.7 * (1 - pct);
+      ring.setAttribute("stroke-dashoffset", offset);
+      mainTxt.textContent = lp.current + "/" + lp.total;
+      subTxt.textContent  = "RUNNING";
+      tele.textContent    = "RUNNING";
+      tele.style.color    = "var(--orange)";
+      document.getElementById("prog-bar").style.width = Math.round(pct*100) + "%";
+      document.getElementById("prog-text").textContent = "Durchlauf " + lp.current + " / " + lp.total;
+      document.getElementById("prog-pct").textContent  = Math.round(pct*100) + "%";
+      document.getElementById("btn-loop-start").disabled = true;
+      document.getElementById("btn-loop-stop").disabled  = false;
+    } else if (lp.total > 0) {
+      ring.setAttribute("stroke-dashoffset", "0");
+      mainTxt.textContent = "DONE";
+      subTxt.textContent  = lp.total + " Cycles";
+      tele.textContent    = "IDLE";
+      tele.style.color    = "var(--muted)";
+      document.getElementById("prog-bar").style.width = "100%";
+      document.getElementById("prog-text").textContent = "Fertig — " + lp.total + " Durchläufe";
+      document.getElementById("prog-pct").textContent  = "100%";
+      document.getElementById("btn-loop-start").disabled = false;
+      document.getElementById("btn-loop-stop").disabled  = true;
+    }
+  }
+
+  function updateStatus(d) {
+    // Motor
+    document.getElementById("motor-dot").className = "motor-dot" + (d.enabled ? " on" : "");
+    document.getElementById("motor-text").textContent = d.enabled ? "Aktiv" : "Inaktiv";
+
+    // Position
+    document.getElementById("pos-x").innerHTML = d.x + '<span class="pos-unit">st</span>';
+    document.getElementById("pos-y").innerHTML = d.y + '<span class="pos-unit">st</span>';
+
+    // Badge
+    setBadgeXY(d.busy ? "BUSY" : "READY");
+
+    // Visualization
+    updateVizXY(d);
+
+    // Homing
+    updateHomingUI(d.homing.xy);
+
+    // Loop
+    updateLoopUI(d.loop);
+  }
+
+  // Keyboard: ↑↓ → jog
+  document.addEventListener("keydown", e => {
+    if (e.key === "ArrowUp")   jogXY(-1);
+    if (e.key === "ArrowDown") jogXY(1);
+  });
+
+  // Polling 500ms
+  setInterval(async () => {
+    try {
+      const r = await fetch("/status");
+      if (r.ok) updateStatus(await r.json());
+    } catch(e) {}
+  }, 500);
+
+  fetch("/status").then(r => r.json()).then(updateStatus);
+</script>
+</body>
+</html>
