@@ -23,6 +23,7 @@ homing     = {
 loop_state = {"running": False, "total": 0, "current": 0}
 move_lock  = threading.Lock()
 stop_flags = {"xy": False, "za": False}
+abort      = threading.Event()   # Not-Aus / Motoren aus: beendet jede laufende Fahrt sofort
 
 
 PAIR_AXES = {
@@ -31,25 +32,34 @@ PAIR_AXES = {
 }
 
 def do_move(axis, steps, direction, delay_end=0.002):
+    return do_move_sync([axis], steps, direction, delay_end)
+
+
+def do_move_sync(axis_names, steps, direction, delay_end=0.002):
+    """Faehrt mehrere Achsen taktgleich: beide STEP-Pins gehen im selben Takt high/low.
+    Pulsform und Rampe identisch zur bisherigen do_move()."""
     delay_start = min(delay_end * 3, 0.010)
     ramp_steps  = min(30, abs(steps) // 2)
-    a = axes[axis]
-    a["dir"].on() if direction > 0 else a["dir"].off()
+    devs = [axes[ax] for ax in axis_names if ax in axes]
+    for a in devs:
+        a["dir"].on() if direction > 0 else a["dir"].off()
     sleep(0.001)
     moved = 0
     for i in range(abs(steps)):
+        if abort.is_set():
+            break
         d = delay_start - (delay_start - delay_end) * (i / ramp_steps) if i < ramp_steps else delay_end
-        a["step"].on();  sleep(d)
-        a["step"].off(); sleep(d)
+        for a in devs: a["step"].on()
+        sleep(d)
+        for a in devs: a["step"].off()
+        sleep(d)
+        for a in devs: a["position"] += direction      # Position live mitzaehlen
         moved += 1
-    a["position"] += moved * direction
+    return moved
 
 
 def move_parallel(steps, direction, delay=0.002, pair="xy"):
-    axis_names = PAIR_AXES[pair]
-    threads = [threading.Thread(target=do_move, args=(ax, steps, direction, delay)) for ax in axis_names if ax in axes]
-    for t in threads: t.start()
-    for t in threads: t.join()
+    return do_move_sync(PAIR_AXES[pair], steps, direction, delay)
 
 
 def move_until_stop(pair, direction, speed):
@@ -58,30 +68,46 @@ def move_until_stop(pair, direction, speed):
     for a in devs:
         a["dir"].on() if direction > 0 else a["dir"].off()
     sleep(0.001)
-    while not stop_flags[pair]:
+    start = min(speed * 3, 0.010)          # Anfahrrampe wie bei do_move, gegen Schrittverlust
+    i = 0
+    while not stop_flags[pair] and not abort.is_set():
+        d = start - (start - speed) * (i / 30) if i < 30 else speed
         for a in devs: a["step"].on()
-        sleep(speed)
+        sleep(d)
         for a in devs: a["step"].off()
-        sleep(speed)
+        sleep(d)
         for ax in axis_names:
             axes[ax]["position"] += direction
+        i += 1
 
 
 def run_homing(pair="xy", speed=0.0005):
     stop_flags[pair] = False
     h = homing[pair]
     axis_names = [ax for ax in PAIR_AXES[pair] if ax in axes]
-    with move_lock:
-        h["status"] = "homing_up"
-        move_until_stop(pair, -1, speed)
-        for ax in axis_names:
-            axes[ax]["position"] = 0
-        stop_flags[pair] = False
+    try:
+        with move_lock:
+            h["status"] = "homing_up"
+            move_until_stop(pair, -1, speed)
+            if abort.is_set():
+                h["status"] = "idle"; h["work_area"] = 0
+                return
+            for ax in axis_names:
+                axes[ax]["position"] = 0
+            stop_flags[pair] = False
 
-        h["status"] = "homing_down"
-        move_until_stop(pair, 1, speed)
-        h["work_area"] = abs(axes[axis_names[0]]["position"]) if axis_names else 0
-        h["status"] = "done"
+            h["status"] = "homing_down"
+            move_until_stop(pair, 1, speed)
+            if abort.is_set():
+                h["status"] = "idle"; h["work_area"] = 0
+                return
+            h["work_area"] = abs(axes[axis_names[0]]["position"]) if axis_names else 0
+            h["status"] = "done"
+    except Exception as e:
+        print("Fehler in der Referenzfahrt:", e)
+        h["status"] = "idle"; h["work_area"] = 0
+    finally:
+        stop_flags[pair] = False
 
 
 def run_loop(cycles, delay, height_pct=100):
@@ -89,14 +115,18 @@ def run_loop(cycles, delay, height_pct=100):
     loop_state["total"]   = cycles
     loop_state["current"] = 0
     work = int(homing["xy"]["work_area"] * height_pct / 100)
-    for i in range(cycles):
-        if not loop_state["running"]:
-            break
-        loop_state["current"] = i + 1
-        with move_lock:
-            move_parallel(work, -1, delay, pair="xy")
-            move_parallel(work,  1, delay, pair="xy")
-    loop_state["running"] = False
+    try:
+        for i in range(cycles):
+            if not loop_state["running"] or abort.is_set():
+                break
+            loop_state["current"] = i + 1
+            with move_lock:
+                move_parallel(work, -1, delay, pair="xy")
+                move_parallel(work,  1, delay, pair="xy")
+    except Exception as e:
+        print("Fehler im Hubzyklus:", e)
+    finally:
+        loop_state["running"] = False
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -108,12 +138,15 @@ def index():
 
 @app.route("/enable", methods=["POST"])
 def enable_motor():
+    abort.clear()
     enable.on(); state["enabled"] = True
     return jsonify(get_state())
 
 
 @app.route("/disable", methods=["POST"])
 def disable_motor():
+    abort.set()                      # laufende Fahrt beenden, sonst laeuft sie nach "Ein" weiter
+    loop_state["running"] = False
     enable.off(); state["enabled"] = False
     return jsonify(get_state())
 
@@ -144,10 +177,11 @@ def move_both():
     dir_y = int(d.get("dir_y", 1))
     if steps <= 0: return jsonify({"error": "Ungültige Schrittanzahl"}), 400
     with move_lock:
-        tx = threading.Thread(target=do_move, args=("x", steps, dir_x, delay))
-        ty = threading.Thread(target=do_move, args=("y", steps, dir_y, delay))
-        tx.start(); ty.start()
-        tx.join();  ty.join()
+        if dir_x == dir_y:
+            do_move_sync(["x", "y"], steps, dir_x, delay)     # taktgleich
+        else:
+            do_move("x", steps, dir_x, delay)                 # Sonderfall: gegenlaeufig nacheinander
+            do_move("y", steps, dir_y, delay)
     return jsonify(get_state())
 
 
@@ -178,6 +212,7 @@ def start_loop_route():
 
 @app.route("/emergency_stop", methods=["POST"])
 def emergency_stop():
+    abort.set()
     stop_flags["xy"]       = True
     stop_flags["za"]       = True
     loop_state["running"]  = False
@@ -219,6 +254,6 @@ def get_state():
 
 if __name__ == "__main__":
     try:
-        app.run(host="0.0.0.0", port=5000)
+        app.run(host="0.0.0.0", port=5000, threaded=True)
     finally:
         enable.off()

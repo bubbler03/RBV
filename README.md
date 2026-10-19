@@ -23,10 +23,12 @@ Dashboard dann unter `http://<pi-ip>:5000`.
 
 - 21 = Enable (active_high=False)
 - 17 = X Step, 27 = X Dir
-- 10 = Y Step, 7 = Y Dir
+- 10 = Y Step, 7 = Y Dir (SPI muss deaktiviert bleiben, GPIO 10/7 sind SPI0-Pins)
 
 ## Dateien
 
-- `motor_ui.py` — Flask-Server + Achssteuerung (Move, Homing, Loop, Emergency Stop)
+- `motor_ui.py` — Flask-Server + Achssteuerung (Move, Homing, Loop, Emergency Stop).
+  Motor X und Y der Bauplattform werden taktgleich in einer Schleife angesteuert;
+  Not-Aus und „Aus“ beenden jede laufende Fahrt sofort.
 - `simple_motor_move.py` — einfacher Testlauf ohne Dashboard
 - `templates/index.html` — Dashboard-Oberfläche

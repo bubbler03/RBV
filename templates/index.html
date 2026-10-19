@@ -1,1140 +1,489 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HUB SYSTEM</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RBV Prüfstand · Ostfalia IPT</title>
+<style>
+  :root {
+    --blue:   #00447c;   /* Ostfalia-Blau */
+    --blue-d: #00335e;
+    --cyan:   #009ee0;   /* Ostfalia-Hellblau, sparsam */
+    --ink:    #1b2733;
+    --muted:  #5f6f7f;
+    --line:   #d7dee6;
+    --bg:     #f2f5f8;
+    --card:   #ffffff;
+    --tint:   #eaf1f7;
+    --red:    #c8102e;
+    --green:  #1e7b34;
+    --amber:  #b45f06;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  .num { font-variant-numeric: tabular-nums; }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: .45; }
+  :focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
 
-    :root {
-      --bg:       #0b0f1a;
-      --panel:    #111827;
-      --panel2:   #1a2235;
-      --border:   #1f2d45;
-      --orange:   #f97316;
-      --orange2:  #ea580c;
-      --text:     #e2e8f0;
-      --muted:    #64748b;
-      --red:      #dc2626;
-      --green:    #16a34a;
-      --locked:   #374151;
-    }
+  /* Kopfzeile */
+  header { background: var(--card); border-bottom: 3px solid var(--blue); }
+  .head { max-width: 1180px; margin: 0 auto; padding: .7rem 1.5rem; display: flex; align-items: center; gap: 1.4rem; }
+  .head img { height: 34px; }
+  .title { border-left: 1px solid var(--line); padding-left: 1.2rem; }
+  .title b { display: block; font-size: 1.05rem; color: var(--blue); }
+  .title span { font-size: .82rem; color: var(--muted); }
+  .grow { flex: 1; }
+  .conn { font-size: .82rem; color: var(--muted); display: flex; align-items: center; gap: .4rem; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #aab4be; }
+  .dot.ok { background: var(--green); } .dot.bad { background: var(--red); }
+  .power { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .power button { border: 0; background: #fff; padding: .45rem .95rem; font-weight: 600; }
+  .power button[aria-pressed="true"].on  { background: var(--green); color: #fff; }
+  .power button[aria-pressed="true"].off { background: #e9edf1; }
+  .estop { background: var(--red); color: #fff; border: 0; border-radius: 6px; padding: .55rem 1.1rem; font-weight: 700; box-shadow: inset 0 -3px 0 rgba(0,0,0,.25); }
+  .estop:active { box-shadow: none; transform: translateY(1px); }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+  main { max-width: 1180px; margin: 0 auto; padding: 1.4rem 1.5rem 2rem; display: grid; gap: 1.2rem; }
+  .cols { display: grid; grid-template-columns: 1.1fr 1fr; gap: 1.2rem; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 1.2rem 1.35rem; }
+  .card h2 { font-size: 1.02rem; color: var(--blue); display: flex; align-items: baseline; gap: .6rem; margin-bottom: .2rem; }
+  .card h2 small { color: var(--muted); font-weight: 400; font-size: .85rem; }
+  .pill { margin-left: auto; font-size: .78rem; font-weight: 600; padding: .15rem .6rem; border-radius: 99px; background: #e9edf1; color: var(--muted); }
+  .pill.ok { background: #e3f1e6; color: var(--green); }
+  .pill.run { background: #fdf0de; color: var(--amber); }
+  .pill.warn { background: #fbe4e7; color: var(--red); }
+  .sub { color: var(--muted); font-size: .86rem; }
 
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Inter', sans-serif;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
+  /* Bauplattform */
+  .plat { display: grid; grid-template-columns: 130px 1fr; gap: 1.5rem; margin-top: 1rem; }
+  .shaft { width: 130px; height: 230px; }
+  .shaft .plate { transition: y .4s ease; }
+  .pos { font-size: 2.3rem; font-weight: 650; line-height: 1.05; }
+  .pos small { font-size: .9rem; font-weight: 400; color: var(--muted); margin-left: .3rem; }
+  .pos-sub { margin: .25rem 0 1.1rem; }
+  label.l, .l { display: block; font-size: .84rem; color: var(--muted); margin-bottom: .3rem; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-bottom: 1rem; }
+  .seg button { border: 0; border-right: 1px solid var(--line); background: #fff; min-width: 3.4rem; padding: .4rem .7rem; }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--blue); color: #fff; }
+  .jog { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-bottom: 1rem; }
+  .jog button { border: 1px solid #b9c5d1; background: #fff; border-radius: 6px; padding: .8rem; font-weight: 600; }
+  .jog button:hover:not(:disabled) { background: var(--tint); }
+  .rowlab { display: flex; justify-content: space-between; font-size: .84rem; color: var(--muted); margin-bottom: .25rem; }
+  input[type=range] { width: 100%; accent-color: var(--blue); }
+  .keys { font-size: .78rem; color: var(--muted); margin-top: .7rem; }
+  kbd { font: .75rem ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 .3rem; background: #fff; }
 
-    /* ── HEADER ── */
-    header {
-      display: flex;
-      align-items: center;
-      padding: 0 2rem;
-      height: 56px;
-      border-bottom: 1px solid var(--border);
-      background: var(--panel);
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      gap: 2rem;
-    }
+  /* Referenzfahrt */
+  .steps { list-style: none; margin: 1rem 0; display: grid; gap: .5rem; }
+  .steps li { display: grid; grid-template-columns: 28px 1fr auto; gap: .75rem; align-items: center; border: 1px solid var(--line); border-radius: 6px; padding: .6rem .8rem; }
+  .steps .n { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #e9edf1; font-weight: 650; font-size: .85rem; }
+  .steps li.active { border-color: var(--blue); background: var(--tint); }
+  .steps li.active .n { background: var(--blue); color: #fff; }
+  .steps li.done .n { background: var(--green); color: #fff; }
+  .steps .t { font-weight: 600; font-size: .92rem; }
+  .steps .s { font-size: .8rem; color: var(--muted); text-align: right; }
+  .big { width: 100%; border: 0; border-radius: 6px; padding: .95rem; font-weight: 700; font-size: 1rem; background: var(--blue); color: #fff; }
+  .big:hover:not(:disabled) { background: var(--blue-d); }
+  .big.stop { background: var(--amber); }
+  .big.stop:hover:not(:disabled) { background: #8f4b05; }
+  .link { border: 0; background: none; color: var(--muted); text-decoration: underline; font-size: .84rem; margin-top: .6rem; }
+  .note { margin-top: .9rem; font-size: .84rem; color: var(--muted); border-left: 3px solid var(--cyan); padding-left: .7rem; }
+  .note.warn { border-left-color: var(--red); color: var(--red); }
+  .wa { display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--line); margin-top: 1rem; padding-top: .8rem; }
+  .wa b { font-size: 1.35rem; }
 
-    .brand {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 1rem;
-      font-weight: 700;
-      letter-spacing: 0.15em;
-      color: var(--orange);
-      text-transform: uppercase;
-      white-space: nowrap;
-    }
+  /* Hubzyklus */
+  .loop { display: grid; grid-template-columns: 1.4fr 1fr 1fr auto; gap: 1.2rem; align-items: end; margin-top: 1rem; }
+  .loop input[type=number] { width: 100%; border: 1px solid #b9c5d1; border-radius: 6px; padding: .5rem .6rem; }
+  .btns { display: flex; gap: .5rem; }
+  .btn { border: 1px solid var(--blue); background: var(--blue); color: #fff; border-radius: 6px; padding: .6rem 1.1rem; font-weight: 600; }
+  .btn.sec { background: #fff; color: var(--ink); border-color: #b9c5d1; }
+  .bar { height: 8px; background: #e9edf1; border-radius: 99px; overflow: hidden; margin-top: 1.1rem; }
+  .bar div { height: 100%; width: 0; background: var(--blue); transition: width .4s ease; }
+  .prog { display: flex; justify-content: space-between; font-size: .84rem; color: var(--muted); margin-top: .35rem; }
 
-    .tabs {
-      display: flex;
-      gap: 0;
-      flex: 1;
-      justify-content: center;
-    }
+  .other { font-size: .84rem; color: var(--muted); }
+  /* Ausrichten */
+  .align-head { display: flex; align-items: center; gap: .8rem; }
+  .switch { display: inline-flex; align-items: center; gap: .5rem; font-size: .88rem; margin-left: auto; cursor: pointer; }
+  .switch input { width: 18px; height: 18px; accent-color: var(--blue); }
+  .align { display: grid; grid-template-columns: 1fr 1fr auto; gap: 1.2rem; align-items: end; margin-top: 1rem; }
+  .motor { border: 1px solid var(--line); border-radius: 6px; padding: .8rem; }
+  .motor .t { font-weight: 600; display: flex; justify-content: space-between; margin-bottom: .55rem; }
+  .motor .jog { margin: 0; }
+  .offset { text-align: right; min-width: 9rem; }
+  .offset b { display: block; font-size: 1.3rem; }
+  .offset.bad b { color: var(--amber); }
+  fieldset.off { opacity: .45; pointer-events: none; }
+  #toast { position: fixed; left: 50%; bottom: 1.4rem; transform: translate(-50%, 12px); opacity: 0; visibility: hidden;
+           background: var(--ink); color: #fff; padding: .7rem 1.1rem; border-radius: 6px; border-left: 4px solid var(--red);
+           transition: opacity .2s, transform .2s, visibility .2s; z-index: 10; max-width: 90vw; }
+  #toast.show { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+  #toast.info { border-left-color: var(--cyan); }
+  footer { max-width: 1180px; margin: 0 auto; padding: 0 1.5rem 1.5rem; font-size: .78rem; color: var(--muted); }
 
-    .tab {
-      padding: 0 1.5rem;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--muted);
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      transition: all .2s;
-    }
-    .tab.active { color: var(--orange); border-bottom-color: var(--orange); }
-
-    .motor-toggle {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.75rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    .motor-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--red);
-      transition: background .3s;
-    }
-    .motor-dot.on { background: var(--green); }
-
-    .btn-enable  { background: var(--green); }
-    .btn-disable { background: var(--locked); }
-
-    .btn-estop {
-      background: var(--red);
-      color: #fff;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      padding: 0.5rem 1.2rem;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-    .btn-estop:hover { background: #b91c1c; }
-
-    /* ── MAIN ── */
-    main {
-      flex: 1;
-      padding: 1.5rem 2rem;
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-      max-width: 1300px;
-      width: 100%;
-      margin: 0 auto;
-    }
-
-    /* HOME ALL AXES row */
-    .home-row {
-      display: flex;
-      justify-content: flex-end;
-      gap: 1rem;
-    }
-
-    .btn-home-all {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      background: transparent;
-      border: 1px solid var(--orange);
-      color: var(--orange);
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      padding: 0.6rem 1.4rem;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background .2s;
-    }
-    .btn-home-all:hover { background: rgba(249,115,22,.1); }
-    .btn-home-all:disabled { opacity: .4; cursor: not-allowed; }
-
-    /* ── TWO COLUMN GRID ── */
-    .axis-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1.5rem;
-    }
-
-    .panel {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-
-    .panel-header {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 1rem 1.5rem 0.75rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .panel-num {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.7rem;
-      color: var(--orange);
-      opacity: .7;
-    }
-
-    .panel-title {
-      font-size: 0.85rem;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-
-    .panel-sub {
-      font-size: 0.7rem;
-      color: var(--muted);
-      letter-spacing: 0.06em;
-    }
-
-    .badge {
-      margin-left: auto;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.65rem;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      padding: 0.2rem 0.6rem;
-      border-radius: 3px;
-      text-transform: uppercase;
-    }
-    .badge-ready  { background: rgba(22,163,74,.2);  color: #4ade80; border: 1px solid #16a34a; }
-    .badge-busy   { background: rgba(249,115,22,.2); color: var(--orange); border: 1px solid var(--orange); animation: pulse 1s infinite; }
-    .badge-locked { background: rgba(55,65,81,.4);  color: var(--muted); border: 1px solid var(--locked); }
-
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
-
-    .panel-body { padding: 1.2rem 1.5rem; display: flex; flex-direction: column; gap: 1.2rem; }
-
-    /* Position display */
-    .pos-display {
-      display: flex;
-      gap: 2rem;
-    }
-
-    .pos-block {}
-    .pos-label {
-      font-size: 0.65rem;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 0.2rem;
-    }
-    .pos-val {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 2.4rem;
-      font-weight: 700;
-      color: var(--orange);
-      line-height: 1;
-    }
-    .pos-unit { font-size: 1rem; color: var(--muted); margin-left: 4px; }
-
-    .pos-val.locked-val { color: var(--muted); }
-
-    /* Step size */
-    .step-label {
-      font-size: 0.65rem;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 0.5rem;
-    }
-
-    .step-btns { display: flex; gap: 0.5rem; }
-    .step-btn {
-      flex: 1;
-      padding: 0.5rem;
-      background: var(--panel2);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      color: var(--text);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.9rem;
-      cursor: pointer;
-      text-align: center;
-      transition: all .15s;
-    }
-    .step-btn.active { border-color: var(--orange); color: var(--orange); background: rgba(249,115,22,.1); }
-    .step-btn:disabled { opacity: .3; cursor: not-allowed; }
-
-    /* Jog buttons */
-    .jog-row { display: flex; gap: 0.75rem; }
-    .btn-jog {
-      flex: 1;
-      padding: 0.9rem;
-      background: var(--panel2);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text);
-      font-size: 1.1rem;
-      font-weight: 600;
-      cursor: pointer;
-      text-align: center;
-      transition: all .15s;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.3rem;
-    }
-    .btn-jog span { font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
-    .btn-jog:hover:not(:disabled) { border-color: var(--orange); background: rgba(249,115,22,.08); }
-    .btn-jog:active:not(:disabled) { transform: scale(.97); }
-    .btn-jog:disabled { opacity: .25; cursor: not-allowed; }
-
-    /* Panel with two columns: left=controls, right=visualization */
-    .panel-cols {
-      display: flex;
-      gap: 1rem;
-    }
-    .panel-controls { flex: 1; display: flex; flex-direction: column; gap: 1rem; }
-    .panel-viz { width: 180px; flex-shrink: 0; }
-
-    /* SVG Visualization */
-    .viz-box {
-      background: var(--panel2);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 0.75rem 0.5rem 0.5rem;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .viz-label {
-      font-size: 0.6rem;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--orange);
-      text-align: center;
-    }
-    .viz-status {
-      font-size: 0.6rem;
-      color: var(--muted);
-      text-align: center;
-      font-style: italic;
-    }
-    .viz-box.locked-viz .viz-label { color: var(--muted); }
-
-    /* ── HOMING PANEL ── */
-    .homing-panel {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0;
-    }
-
-    .homing-left {
-      padding: 1.2rem 1.5rem;
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-
-    .homing-right {
-      padding: 1.2rem 1.5rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-    }
-
-    .homing-title {
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    .homing-phase {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.7rem 1rem;
-      background: var(--panel2);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      font-size: 0.8rem;
-    }
-    .phase-icon { font-size: 1.1rem; width: 20px; text-align: center; }
-    .phase-text { flex: 1; }
-    .phase-badge {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.6rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      padding: 0.15rem 0.5rem;
-      border-radius: 3px;
-      text-transform: uppercase;
-    }
-    .phase-idle    { color: var(--muted); border: 1px solid var(--border); }
-    .phase-active  { color: var(--orange); border: 1px solid var(--orange); background: rgba(249,115,22,.1); animation: pulse 1s infinite; }
-    .phase-done    { color: #4ade80; border: 1px solid #16a34a; background: rgba(22,163,74,.1); }
-
-    .work-area-display {
-      padding: 0.75rem 1rem;
-      background: var(--panel2);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-    }
-    .wa-label { font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
-    .wa-val {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 1.6rem;
-      font-weight: 700;
-      color: #4ade80;
-    }
-
-    /* ── BUTTONS ── */
-    .btn {
-      padding: 0.65rem 1.4rem;
-      border: none;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: all .15s;
-      white-space: nowrap;
-    }
-    .btn:disabled { opacity: .3; cursor: not-allowed; }
-    .btn-orange { background: var(--orange); color: #fff; }
-    .btn-orange:hover:not(:disabled) { background: var(--orange2); }
-    .btn-outline-orange { background: transparent; border: 1px solid var(--orange); color: var(--orange); }
-    .btn-outline-orange:hover:not(:disabled) { background: rgba(249,115,22,.1); }
-    .btn-stop-sm { background: var(--red); color: #fff; }
-    .btn-stop-sm:hover:not(:disabled) { background: #b91c1c; }
-    .btn-row { display: flex; gap: 0.75rem; align-items: center; }
-
-    /* ── AUTOMATOR ── */
-    .automator {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-left: 3px solid var(--orange);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-
-    .automator-header {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      padding: 1rem 1.5rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .automator-icon { font-size: 1.4rem; }
-
-    .automator-title {
-      font-size: 1rem;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-
-    .telemetry {
-      display: flex;
-      gap: 0;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .tele-item {
-      flex: 1;
-      padding: 0.75rem 1.5rem;
-      border-right: 1px solid var(--border);
-    }
-    .tele-item:last-child { border-right: none; }
-    .tele-label { font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
-    .tele-val {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 1rem;
-      font-weight: 600;
-      margin-top: 2px;
-    }
-    .tele-val.orange { color: var(--orange); }
-    .tele-val.green  { color: #4ade80; }
-
-    .automator-body {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 0;
-    }
-
-    .automator-controls {
-      padding: 1.5rem;
-      display: flex;
-      flex-direction: column;
-      gap: 1.2rem;
-      border-right: 1px solid var(--border);
-    }
-
-    .slider-row { display: flex; flex-direction: column; gap: 0.5rem; }
-    .slider-top { display: flex; justify-content: space-between; align-items: center; }
-    .slider-label { font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
-    .slider-val {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.9rem;
-      color: var(--orange);
-    }
-
-    input[type=range] {
-      width: 100%;
-      accent-color: var(--orange);
-      height: 4px;
-      cursor: pointer;
-    }
-
-    .slider-ticks {
-      display: flex;
-      justify-content: space-between;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.6rem;
-      color: var(--muted);
-    }
-
-    .iter-row { display: flex; align-items: center; gap: 1rem; }
-    .iter-label { font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); flex-shrink: 0; }
-
-    input[type=number] {
-      background: var(--panel2);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      color: var(--text);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 1.1rem;
-      padding: 0.5rem 0.75rem;
-      width: 90px;
-      text-align: center;
-    }
-
-    .btn-start-loop {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      background: var(--orange);
-      color: #fff;
-      font-size: 0.85rem;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      padding: 0.9rem 2rem;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      width: 100%;
-      transition: background .2s;
-    }
-    .btn-start-loop:hover:not(:disabled) { background: var(--orange2); }
-    .btn-start-loop:disabled { opacity: .35; cursor: not-allowed; }
-
-    .progress-section { display: flex; flex-direction: column; gap: 0.5rem; }
-    .progress-info { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); }
-    .progress-bar-bg { background: var(--panel2); border-radius: 4px; height: 8px; overflow: hidden; }
-    .progress-bar { background: var(--orange); height: 100%; border-radius: 4px; transition: width .4s ease; }
-
-    .automator-viz {
-      width: 220px;
-      padding: 1.5rem 1rem;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.75rem;
-    }
-
-    .loop-status-ring {
-      position: relative;
-      width: 120px;
-      height: 120px;
-    }
-
-    .loop-status-text {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
-    .loop-status-main {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 1rem;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-    .loop-status-sub { font-size: 0.6rem; color: var(--muted); letter-spacing: 0.08em; }
-    .loop-seq-label { font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
-
-    /* Footer */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 0.75rem 2rem;
-      text-align: center;
-      font-size: 0.65rem;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    /* responsive */
-    @media (max-width: 900px) {
-      .axis-grid { grid-template-columns: 1fr; }
-      .homing-panel { grid-template-columns: 1fr; }
-      .homing-left { border-right: none; border-bottom: 1px solid var(--border); }
-      .automator-body { grid-template-columns: 1fr; }
-      .automator-viz { width: 100%; border-top: 1px solid var(--border); }
-    }
-  </style>
+  @media (max-width: 900px) {
+    .cols { grid-template-columns: 1fr; }
+    .loop { grid-template-columns: 1fr 1fr; }
+    .head { flex-wrap: wrap; }
+  }
+  @media (max-width: 520px) { .plat { grid-template-columns: 1fr; } .loop { grid-template-columns: 1fr; } }
+</style>
 </head>
 <body>
-
-<!-- ── HEADER ── -->
 <header>
-  <div class="brand">Hub System</div>
-  <div class="tabs">
-    <div class="tab active">Manual</div>
-    <div class="tab">Auto</div>
-    <div class="tab">Settings</div>
+  <div class="head">
+    <img src="{{ url_for('static', filename='ostfalia_header.png') }}" alt="Ostfalia Hochschule für angewandte Wissenschaften">
+    <div class="title"><b>RBV-Prüfstand</b><span>Institut für Produktionstechnik · Dichtungsversuch Bauplattform</span></div>
+    <div class="grow"></div>
+    <div class="conn"><span class="dot" id="conn-dot"></span><span id="conn-txt">Verbinde …</span></div>
+    <div class="power" role="group" aria-label="Motoren">
+      <button class="on" id="btn-on" aria-pressed="false" onclick="enableMotor()">Motoren ein</button>
+      <button class="off" id="btn-off" aria-pressed="true" onclick="disableMotor()">Aus</button>
+    </div>
+    <button class="estop" onclick="emergencyStop()" title="Not-Aus (Esc)">Not-Aus</button>
   </div>
-  <div class="motor-toggle">
-    <div class="motor-dot" id="motor-dot"></div>
-    <span id="motor-text">Inaktiv</span>
-    <button class="btn btn-enable" style="padding:.4rem .9rem;font-size:.7rem;border-radius:3px;margin-left:.5rem;" onclick="enableMotor()">Ein</button>
-    <button class="btn btn-disable" style="padding:.4rem .9rem;font-size:.7rem;border-radius:3px;color:#fff;" onclick="disableMotor()">Aus</button>
-  </div>
-  <button class="btn-estop" onclick="emergencyStop()">⬛ Emergency Stop</button>
 </header>
 
 <main>
+  <div class="cols">
+    <!-- Bauplattform -->
+    <section class="card" aria-labelledby="h-plat">
+      <h2 id="h-plat">Bauplattform <small>Motor X + Motor Y, synchron</small><span class="pill" id="st-plat">Aus</span></h2>
+      <div class="plat">
+        <svg class="shaft" viewBox="0 0 130 230" role="img" aria-label="Lage der Bauplattform im Schacht">
+          <rect x="14" y="10" width="7" height="210" fill="#c3ccd6"/>
+          <rect x="109" y="10" width="7" height="210" fill="#c3ccd6"/>
+          <line x1="40" y1="10" x2="40" y2="220" stroke="#d7dee6" stroke-width="3" stroke-dasharray="3 3"/>
+          <line x1="90" y1="10" x2="90" y2="220" stroke="#d7dee6" stroke-width="3" stroke-dasharray="3 3"/>
+          <line x1="6" y1="10" x2="124" y2="10" stroke="#5f6f7f" stroke-width="1.5"/>
+          <line x1="6" y1="220" x2="124" y2="220" stroke="#5f6f7f" stroke-width="1.5"/>
+          <text x="124" y="7" text-anchor="end" font-size="8" fill="#5f6f7f">oben</text>
+          <text x="124" y="229" text-anchor="end" font-size="8" fill="#5f6f7f">unten</text>
+          <rect class="plate" id="plate" x="21" y="10" width="88" height="11" rx="1.5" fill="#00447c"/>
+          <rect class="plate" id="seal-l" x="21" y="10" width="2.5" height="11" fill="#009ee0"/>
+          <rect class="plate" id="seal-r" x="106.5" y="10" width="2.5" height="11" fill="#009ee0"/>
+        </svg>
+        <div>
+          <div class="pos num" id="pos">0<small>Schritte</small></div>
+          <div class="pos-sub sub num" id="pos-sub">Nicht referenziert · Motor X 0 / Motor Y 0</div>
 
-  <!-- HOME ROW -->
-  <div class="home-row">
-    <button class="btn-home-all" id="btn-home-all" onclick="startHoming()">
-      🏠 Home All Axes
-    </button>
-    <button class="btn btn-stop-sm" id="btn-home-stop" onclick="stopHoming()" disabled style="font-size:.7rem;letter-spacing:.08em;">Stop</button>
+          <span class="l">Schrittweite</span>
+          <div class="seg" id="seg">
+            <button data-s="1" aria-pressed="false">1</button>
+            <button data-s="10" aria-pressed="true">10</button>
+            <button data-s="100" aria-pressed="false">100</button>
+            <button data-s="200" aria-pressed="false">200</button>
+          </div>
+          <div class="jog">
+            <button id="up" onclick="jog(-1)">▲ Hoch</button>
+            <button id="down" onclick="jog(1)">▼ Runter</button>
+          </div>
+          <div class="rowlab"><span>Geschwindigkeit</span><span class="num" id="spd-val"></span></div>
+          <input type="range" id="spd" min="1" max="20" value="17" aria-label="Geschwindigkeit">
+          <p class="keys"><kbd>↑</kbd> <kbd>↓</kbd> verfahren · <kbd>Enter</kbd> Endlage erreicht · <kbd>Esc</kbd> Not-Aus</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Referenzfahrt -->
+    <section class="card" aria-labelledby="h-ref">
+      <h2 id="h-ref">Referenzfahrt<span class="pill" id="st-ref">Nicht referenziert</span></h2>
+      <p class="sub">Die Plattform fährt erst nach oben, dann nach unten. Du stoppst sie jeweils an der Endlage.</p>
+      <ol class="steps">
+        <li id="s1"><span class="n">1</span><div><div class="t">Obere Endlage</div><div class="sub">Stopp setzt den Nullpunkt</div></div><span class="s num" id="s1-s">wartet</span></li>
+        <li id="s2"><span class="n">2</span><div><div class="t">Untere Endlage</div><div class="sub">Stopp speichert den Arbeitsbereich</div></div><span class="s num" id="s2-s">wartet</span></li>
+      </ol>
+      <button class="big" id="ref-btn" onclick="refAction()">Referenzfahrt starten</button>
+      <button class="link" id="ref-abort" onclick="abortHoming('Referenzfahrt abgebrochen')" hidden>Referenzfahrt abbrechen</button>
+      <p class="note" id="ref-note">Kurz vor dem Anschlag stoppen. Fährt die Plattform auf Block, zählt das Programm weiter, obwohl sich der Motor nicht mehr dreht, und der Arbeitsbereich wird zu groß.</p>
+      <div class="wa"><span class="sub">Arbeitsbereich</span><b class="num" id="wa">—</b></div>
+    </section>
   </div>
 
-  <!-- ── AXIS GRID ── -->
-  <div class="axis-grid">
-
-    <!-- PRIMARY PLANE (X+Y) -->
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-num">01</span>
-        <span class="panel-title">Primary Plane</span>
-        <span class="panel-sub">(X+Y)</span>
-        <span class="badge badge-ready" id="badge-xy">READY</span>
-      </div>
-      <div class="panel-body">
-        <div class="panel-cols">
-          <div class="panel-controls">
-            <!-- Position -->
-            <div>
-              <div class="pos-label">Synchronous Movement · Position Z-Sync</div>
-              <div style="display:flex;gap:1.5rem;align-items:baseline;">
-                <div>
-                  <div class="pos-label" style="font-size:.55rem;">X-AXIS</div>
-                  <div class="pos-val" id="pos-x">0<span class="pos-unit">st</span></div>
-                </div>
-                <div>
-                  <div class="pos-label" style="font-size:.55rem;">Y-AXIS</div>
-                  <div class="pos-val" id="pos-y">0<span class="pos-unit">st</span></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Step size -->
-            <div>
-              <div class="step-label">Step Size Selection</div>
-              <div class="step-btns">
-                <div class="step-btn active" onclick="setSteps(1,this)">1</div>
-                <div class="step-btn" onclick="setSteps(10,this)">10</div>
-                <div class="step-btn" onclick="setSteps(100,this)">100</div>
-                <div class="step-btn" onclick="setSteps(200,this)">200</div>
-              </div>
-            </div>
-
-            <!-- Jog -->
-            <div class="jog-row">
-              <button class="btn-jog" onclick="jogXY(-1)" id="jog-up">
-                ∧<span>Move Up</span>
-              </button>
-              <button class="btn-jog" onclick="jogXY(1)" id="jog-down">
-                ∨<span>Move Down</span>
-              </button>
-            </div>
-
-            <!-- Speed -->
-            <div>
-              <div class="slider-top" style="margin-bottom:.4rem;">
-                <div class="slider-label">Feedrate</div>
-                <div class="slider-val" id="speed-val">2.0 ms</div>
-              </div>
-              <input type="range" id="speed-slider" min="1" max="20" value="17" oninput="updateSpeed(this.value)">
-            </div>
-          </div>
-
-          <!-- Visualization X+Y -->
-          <div class="panel-viz">
-            <div class="viz-box">
-              <div class="viz-label">Real-Time Visualization</div>
-              <svg id="viz-xy" width="160" height="240" viewBox="0 0 160 240">
-                <!-- Pillars -->
-                <rect x="10"  y="10" width="14" height="220" rx="3" fill="#1f2d45"/>
-                <rect x="136" y="10" width="14" height="220" rx="3" fill="#1f2d45"/>
-                <rect x="38"  y="10" width="10" height="220" rx="2" fill="#162030"/>
-                <rect x="112" y="10" width="10" height="220" rx="2" fill="#162030"/>
-                <!-- Top plate -->
-                <rect x="5" y="5" width="150" height="12" rx="3" fill="#1f2d45"/>
-                <!-- Bottom plate -->
-                <rect x="5" y="223" width="150" height="12" rx="3" fill="#1f2d45"/>
-                <!-- Lead screws -->
-                <line x1="48"  y1="20" x2="48"  y2="223" stroke="#0f1a2a" stroke-width="2" stroke-dasharray="4,3"/>
-                <line x1="112" y1="20" x2="112" y2="223" stroke="#0f1a2a" stroke-width="2" stroke-dasharray="4,3"/>
-                <!-- Platform -->
-                <rect id="platform-xy" x="20" y="110" width="120" height="12" rx="3" fill="#f97316"/>
-                <!-- Platform glow -->
-                <rect id="platform-xy-glow" x="20" y="110" width="120" height="12" rx="3" fill="#f97316" opacity="0.25" transform="scale(1.02) translate(-1.6,-0.6)"/>
-                <!-- Active label -->
-                <text id="platform-xy-label" x="80" y="104" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#f97316" letter-spacing="1">ACTIVE PLATFORM</text>
-              </svg>
-              <div class="viz-status" id="viz-xy-status">Status: Idle</div>
-            </div>
+  <!-- Ausrichten -->
+  <section class="card" aria-labelledby="h-align">
+    <div class="align-head">
+      <h2 id="h-align" style="margin:0">Plattform ausrichten <small>Motoren einzeln, vor der Referenzfahrt</small></h2>
+      <label class="switch"><input type="checkbox" id="align-on"> Einzelmotoren freigeben</label>
+    </div>
+    <p class="sub" style="margin-top:.3rem">Steht die Plattform schief, einen Motor in kleinen Schritten nachführen, bis sie gerade im Schacht sitzt. Danach neu referenzieren.</p>
+    <fieldset class="off" id="align-box" style="border:0">
+      <div class="align">
+        <div class="motor">
+          <div class="t"><span>Motor X</span><span class="num sub" id="ax-x">0</span></div>
+          <div class="jog"><button onclick="jogOne('x',-1)">▲ Hoch</button><button onclick="jogOne('x',1)">▼ Runter</button></div>
+        </div>
+        <div class="motor">
+          <div class="t"><span>Motor Y</span><span class="num sub" id="ax-y">0</span></div>
+          <div class="jog"><button onclick="jogOne('y',-1)">▲ Hoch</button><button onclick="jogOne('y',1)">▼ Runter</button></div>
+        </div>
+        <div>
+          <span class="l">Schrittweite</span>
+          <div class="seg" id="aseg" style="margin-bottom:0">
+            <button data-s="1" aria-pressed="true">1</button>
+            <button data-s="10" aria-pressed="false">10</button>
+            <button data-s="50" aria-pressed="false">50</button>
           </div>
         </div>
+      </div>
+      <div class="offset sub" id="offset-box" style="margin-top:.8rem">Versatz X − Y <b class="num" id="offset">0 Schritte</b></div>
+    </fieldset>
+  </section>
+
+  <!-- Hubzyklus -->
+  <section class="card" aria-labelledby="h-loop">
+    <h2 id="h-loop">Hubzyklus <small>für den Pulvertest</small><span class="pill" id="st-loop">Erst referenzieren</span></h2>
+    <p class="sub">Die Plattform fährt zuerst in die untere Endlage und dann den eingestellten Hub hoch und wieder runter, mit der oben eingestellten Geschwindigkeit.</p>
+    <div class="loop">
+      <div>
+        <div class="rowlab"><span>Hub</span><span class="num" id="hub-val">100 %</span></div>
+        <input type="range" id="hub" min="5" max="100" value="100" aria-label="Hub in Prozent">
+      </div>
+      <div><span class="l">Hubweg</span><b class="num" id="hub-steps">—</b></div>
+      <div><label class="l" for="cyc">Zyklen</label><input type="number" id="cyc" min="1" value="5"></div>
+      <div class="btns">
+        <button class="btn" id="loop-start" onclick="startLoop()" disabled>Starten</button>
+        <button class="btn sec" id="loop-stop" onclick="stopLoop()" disabled>Stoppen</button>
       </div>
     </div>
+    <div class="bar"><div id="bar"></div></div>
+    <div class="prog num"><span id="prog">Noch kein Zyklus gelaufen</span><span id="prog-pct"></span></div>
+  </section>
 
-    <!-- DEPTH & ROTATION (Z+A) — LOCKED -->
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-num">02</span>
-        <span class="panel-title">Depth &amp; Rotation</span>
-        <span class="panel-sub">(Z+A)</span>
-        <span class="badge badge-locked">LOCKED</span>
-      </div>
-      <div class="panel-body">
-        <div class="panel-cols">
-          <div class="panel-controls">
-            <div>
-              <div class="pos-label">Z-Axis &amp; A-Rotation</div>
-              <div style="display:flex;gap:1.5rem;align-items:baseline;">
-                <div>
-                  <div class="pos-label" style="font-size:.55rem;">Z-AXIS</div>
-                  <div class="pos-val locked-val">—<span class="pos-unit">st</span></div>
-                </div>
-                <div>
-                  <div class="pos-label" style="font-size:.55rem;">A-AXIS</div>
-                  <div class="pos-val locked-val">—<span class="pos-unit">st</span></div>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <div class="step-label">Step Size Selection</div>
-              <div class="step-btns">
-                <div class="step-btn" style="opacity:.3;" disabled>1</div>
-                <div class="step-btn active" style="opacity:.3;" disabled>10</div>
-                <div class="step-btn" style="opacity:.3;" disabled>100</div>
-                <div class="step-btn" style="opacity:.3;" disabled>200</div>
-              </div>
-            </div>
-
-            <div class="jog-row">
-              <button class="btn-jog" disabled>∧<span>Move Up</span></button>
-              <button class="btn-jog" disabled>∨<span>Move Down</span></button>
-            </div>
-
-            <div>
-              <div class="slider-top" style="margin-bottom:.4rem;">
-                <div class="slider-label">Feedrate</div>
-                <div class="slider-val" style="color:var(--muted);">— ms</div>
-              </div>
-              <input type="range" min="1" max="20" value="5" disabled style="opacity:.3;cursor:not-allowed;">
-            </div>
-          </div>
-
-          <!-- Visualization Z+A locked -->
-          <div class="panel-viz">
-            <div class="viz-box locked-viz">
-              <div class="viz-label">Real-Time Visualization</div>
-              <svg width="160" height="240" viewBox="0 0 160 240" opacity="0.35">
-                <rect x="10"  y="10" width="14" height="220" rx="3" fill="#1f2d45"/>
-                <rect x="136" y="10" width="14" height="220" rx="3" fill="#1f2d45"/>
-                <rect x="38"  y="10" width="10" height="220" rx="2" fill="#162030"/>
-                <rect x="112" y="10" width="10" height="220" rx="2" fill="#162030"/>
-                <rect x="5"  y="5"   width="150" height="12" rx="3" fill="#1f2d45"/>
-                <rect x="5"  y="223" width="150" height="12" rx="3" fill="#1f2d45"/>
-                <line x1="48"  y1="20" x2="48"  y2="223" stroke="#0f1a2a" stroke-width="2" stroke-dasharray="4,3"/>
-                <line x1="112" y1="20" x2="112" y2="223" stroke="#0f1a2a" stroke-width="2" stroke-dasharray="4,3"/>
-                <rect x="20" y="116" width="120" height="12" rx="3" fill="#4b5563"/>
-                <text x="80" y="110" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#4b5563" letter-spacing="1">LOCKED</text>
-              </svg>
-              <div class="viz-status">Status: Locked</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── HOMING PANEL ── -->
-  <div class="panel homing-panel">
-    <div class="homing-left">
-      <div class="homing-title">🏠 Homing Sequence</div>
-
-      <!-- Phase 1 -->
-      <div class="homing-phase" id="phase1-box">
-        <div class="phase-icon">⬆</div>
-        <div class="phase-text">
-          <div style="font-size:.8rem;font-weight:600;">Phase 1 — Oberer Anschlag</div>
-          <div style="font-size:.7rem;color:var(--muted);">Fährt nach oben · Stop setzt Nullpunkt</div>
-        </div>
-        <div class="phase-badge phase-idle" id="phase1-badge">IDLE</div>
-      </div>
-
-      <!-- Phase 2 -->
-      <div class="homing-phase" id="phase2-box">
-        <div class="phase-icon">⬇</div>
-        <div class="phase-text">
-          <div style="font-size:.8rem;font-weight:600;">Phase 2 — Unterer Anschlag</div>
-          <div style="font-size:.7rem;color:var(--muted);">Fährt nach unten · Stop setzt Arbeitsbereich</div>
-        </div>
-        <div class="phase-badge phase-idle" id="phase2-badge">IDLE</div>
-      </div>
-    </div>
-
-    <div class="homing-right">
-      <div class="homing-title">Steuerung</div>
-      <div class="btn-row" style="margin-bottom:.5rem;">
-        <button class="btn btn-orange" id="btn-homing-start2" onclick="startHoming()" style="flex:1;">▶ Homing starten</button>
-        <button class="btn btn-stop-sm" id="btn-homing-stop2" onclick="stopHoming()" disabled style="flex:1;">⬛ Stop</button>
-      </div>
-      <div class="homing-title" style="margin-top:.5rem;">Arbeitsbereich</div>
-      <div class="work-area-display">
-        <div class="wa-label">Gemessene Distanz</div>
-        <div class="wa-val" id="wa-val">—</div>
-        <div style="font-size:.65rem;color:var(--muted);margin-top:2px;">Schritte</div>
-      </div>
-      <div style="font-size:.7rem;color:var(--muted);line-height:1.5;" id="homing-hint">
-        Starte Homing mit dem Button oben rechts.<br>
-        Phase 1: Motor fährt hoch → Stop drücken.<br>
-        Phase 2: Motor fährt runter → Stop drücken.
-      </div>
-    </div>
-  </div>
-
-  <!-- ── HUBLOOP AUTOMATOR ── -->
-  <div class="automator" id="automator-section">
-    <div class="automator-header">
-      <div class="automator-icon">⚡</div>
-      <div class="automator-title">Hubloop Automator</div>
-    </div>
-
-    <div class="telemetry">
-      <div class="tele-item">
-        <div class="tele-label">Versorgung</div>
-        <div class="tele-val orange">24.0 V</div>
-      </div>
-      <div class="tele-item">
-        <div class="tele-label">Arbeitsbereich</div>
-        <div class="tele-val green" id="tele-wa">— Steps</div>
-      </div>
-      <div class="tele-item">
-        <div class="tele-label">Feedrate</div>
-        <div class="tele-val orange" id="tele-feed">2.0 ms/step</div>
-      </div>
-      <div class="tele-item">
-        <div class="tele-label">Loop Status</div>
-        <div class="tele-val" id="tele-status" style="color:var(--muted);">IDLE</div>
-      </div>
-    </div>
-
-    <div class="automator-body">
-      <div class="automator-controls">
-
-        <!-- Travel distance slider -->
-        <div class="slider-row">
-          <div class="slider-top">
-            <div class="slider-label">Travel Distance</div>
-            <div class="slider-val" id="travel-val">100%</div>
-          </div>
-          <input type="range" id="travel-slider" min="5" max="100" value="100" oninput="updateTravel(this.value)">
-          <div class="slider-ticks">
-            <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
-          </div>
-        </div>
-
-        <!-- Iterations -->
-        <div class="iter-row">
-          <div class="iter-label">Loop Iterations</div>
-          <input type="number" id="loop-cycles" min="1" value="5">
-        </div>
-
-        <!-- Progress -->
-        <div class="progress-section" id="progress-section" style="opacity:.4;">
-          <div class="progress-info">
-            <span id="prog-text">Bereit</span>
-            <span id="prog-pct">0%</span>
-          </div>
-          <div class="progress-bar-bg">
-            <div class="progress-bar" id="prog-bar" style="width:0%"></div>
-          </div>
-        </div>
-
-        <!-- Start / Stop -->
-        <div class="btn-row">
-          <button class="btn-start-loop" id="btn-loop-start" onclick="startLoop()" disabled>
-            ▶ Start Loop
-          </button>
-          <button class="btn btn-stop-sm" id="btn-loop-stop" onclick="stopLoop()" disabled style="padding:.9rem 1.2rem;font-size:.8rem;">■</button>
-        </div>
-
-      </div>
-
-      <!-- Loop visualization -->
-      <div class="automator-viz">
-        <div class="loop-seq-label">Loop Sequence</div>
-        <div class="loop-status-ring">
-          <svg width="120" height="120" viewBox="0 0 120 120">
-            <circle cx="60" cy="60" r="52" fill="none" stroke="#1f2d45" stroke-width="8"/>
-            <circle cx="60" cy="60" r="52" fill="none" stroke="#f97316" stroke-width="8"
-              stroke-dasharray="326.7" id="loop-ring"
-              stroke-dashoffset="326.7"
-              stroke-linecap="round"
-              transform="rotate(-90 60 60)"
-              style="transition: stroke-dashoffset .4s ease;"/>
-          </svg>
-          <div class="loop-status-text">
-            <div class="loop-status-main" id="loop-main">IDLE</div>
-            <div class="loop-status-sub" id="loop-sub">—</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
+  <p class="other">Pulverplattform (Motor Z + A): im Programm nicht angeschlossen.</p>
 </main>
 
-<footer>Hub System Control · System Active · v1.0.0</footer>
+<footer>Raspberry Pi 5 · CNC-Shield V3 · TMC2209 · Enable BCM 21 · Motor X BCM 17/27 · Motor Y BCM 10/7</footer>
+<div id="toast" role="status" aria-live="polite"></div>
 
 <script>
-  let steps = 10, delay = 0.002, moving = false, heightPct = 100;
+// Endpunkte und Parameter unverändert aus motor_ui.py:
+// /enable /disable /emergency_stop /move_both /home /stop_homing /start_loop /stop_loop /status
+const $ = id => document.getElementById(id);
+let steps = 10, delay = 0.002, hub = 100, S = null, moving = false, busyUI = false;
+let refInvalid = false;               // Arbeitsbereich durch Abbruch/Not-Aus nicht verlässlich
+let vizMin = 0, vizMax = 0;           // Anzeige vor der Referenzfahrt
+let stopSentIn = null;
+let aSteps = 1;                       // Schrittweite beim Ausrichten                // Phase, in der "Endlage erreicht" schon gesendet wurde
+const HOMING = ["starting", "homing_up", "homing_down"];
 
-  // ── Speed ──
-  function updateSpeed(val) {
-    delay = parseFloat((0.0105 - val * 0.0005).toFixed(4));
-    document.getElementById("speed-val").textContent = (delay * 1000).toFixed(1) + " ms";
-    document.getElementById("tele-feed").textContent = (delay * 1000).toFixed(1) + " ms/step";
+// ── Hilfen ──
+let tt;
+function toast(msg, info) { const t = $("toast"); t.textContent = msg; t.className = "show" + (info ? " info" : ""); clearTimeout(tt); tt = setTimeout(() => t.className = "", 3800); }
+async function post(url, body) {
+  try {
+    const r = await fetch(url, { method: "POST", headers: body ? {"Content-Type": "application/json"} : {}, body: body ? JSON.stringify(body) : undefined });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { toast(d.error || ("Fehler " + r.status)); return null; }
+    return d;
+  } catch (e) { toast("Keine Verbindung zum Pi"); return null; }
+}
+async function getState() { const r = await fetch("/status", {cache: "no-store"}); if (!r.ok) throw 0; return r.json(); }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const pill = (id, txt, cls) => { $(id).textContent = txt; $(id).className = "pill " + (cls || ""); };
+
+// ── Einstellungen ──
+function setSpeed(v) { delay = parseFloat((0.0105 - v * 0.0005).toFixed(4)); $("spd-val").textContent = Math.round(1 / (2 * delay)) + " Schritte/s"; }
+$("spd").addEventListener("input", e => setSpeed(e.target.value)); setSpeed($("spd").value);
+$("seg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; steps = +b.dataset.s; [...$("seg").children].forEach(x => x.setAttribute("aria-pressed", x === b)); });
+$("hub").addEventListener("input", e => { hub = +e.target.value; $("hub-val").textContent = hub + " %"; if (S) render(S); });
+
+// ── Motoren ──
+async function enableMotor() { const d = await post("/enable"); if (d) render(d); }
+async function disableMotor() {
+  const homingRun = S && HOMING.includes(S.homing.xy.status);
+  const d = await post("/disable"); if (d) render(d);
+  if (homingRun) await abortHoming("Motoren aus: Referenzfahrt abgebrochen");
+}
+async function emergencyStop() {
+  const homingRun = S && HOMING.includes(S.homing.xy.status);
+  await post("/emergency_stop");
+  toast("Not-Aus ausgelöst, Motoren stromlos");
+  if (homingRun) await abortHoming("Not-Aus: Referenzfahrt abgebrochen");
+  poll();
+}
+
+// ── Verfahren ──
+async function jog(dir) {
+  if (moving || busyUI) return;
+  if (S && !S.enabled) { toast("Erst die Motoren einschalten"); return; }
+  // Softlimits nach gültiger Referenzfahrt: nicht über die Endlagen hinaus
+  let n = steps;
+  const h = S ? S.homing.xy : null;
+  if (h && h.status === "done" && !refInvalid) {
+    n = dir < 0 ? Math.min(steps, S.x) : Math.min(steps, h.work_area - S.x);
+    if (n <= 0) { toast(dir < 0 ? "Obere Endlage erreicht" : "Untere Endlage erreicht"); return; }
+  }
+  moving = true; pill("st-plat", "Fährt", "run");
+  try { const d = await post("/move_both", { steps: n, dir_x: dir, dir_y: dir, delay }); if (d) render(d); }
+  finally { moving = false; }
+}
+
+// ── Ausrichten: einzelner Motor über den vorhandenen Endpunkt /move ──
+$("aseg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; aSteps = +b.dataset.s; [...$("aseg").children].forEach(x => x.setAttribute("aria-pressed", x === b)); });
+$("align-on").addEventListener("change", e => {
+  $("align-box").className = e.target.checked ? "" : "off";
+  if (e.target.checked && S && S.homing.xy.status === "done" && !refInvalid)
+    toast("Nach dem Ausrichten bitte neu referenzieren", true);
+});
+async function jogOne(axis, dir) {
+  if (moving || busyUI) return;
+  if (S && !S.enabled) { toast("Erst die Motoren einschalten"); return; }
+  if (S && (HOMING.includes(S.homing.xy.status) || S.loop.running)) { toast("Während Referenzfahrt oder Hubzyklus nicht möglich"); return; }
+  moving = true;
+  try {
+    const d = await post("/move", { axis, steps: aSteps, dir, delay: Math.max(delay, 0.004) });   // bewusst langsam
+    if (d) { if (S && S.homing.xy.status === "done") refInvalid = true; render(d); }
+  } finally { moving = false; }
+}
+
+// ── Referenzfahrt (manuell mit Stopp) ──
+async function refAction() {
+  const st = S ? S.homing.xy.status : "idle";
+  if (HOMING.includes(st)) {                                   // Endlage erreicht
+    if (st === "starting") return;                             // Thread setzt den Stopp beim Start zurück
+    if (stopSentIn === st) return;                             // Doppelklick würde sonst Phase 2 sofort beenden
+    stopSentIn = st;
+    await post("/stop_homing", { pair: "xy" }); poll(); return;
+  }
+  if (S && !S.enabled) { toast("Erst die Motoren einschalten"); return; }
+  if (S && S.loop.running) { toast("Erst den Hubzyklus stoppen"); return; }
+  const d = await post("/home", { pair: "xy" });
+  if (d) { refInvalid = false; poll(); }
+}
+// Beendet eine laufende Referenzfahrt über die vorhandene Stopp-Funktion,
+// damit Phase 2 nicht im Hintergrund weiterläuft. Der gemessene Bereich gilt danach als ungültig.
+async function abortHoming(msg) {
+  refInvalid = true;
+  for (let i = 0; i < 12; i++) {
+    let st; try { st = (await getState()).homing.xy.status; } catch (e) { break; }
+    if (!HOMING.includes(st)) break;
+    await post("/stop_homing", { pair: "xy" });
+    await sleep(150);
+  }
+  toast(msg + ". Bitte neu referenzieren.");
+  poll();
+}
+
+// ── Hubzyklus ──
+async function startLoop() {
+  if (!S) return;
+  const cycles = parseInt($("cyc").value);
+  if (!(cycles >= 1)) { toast("Mindestens 1 Zyklus"); return; }
+  const wa = S.homing.xy.work_area;
+  // Startposition: untere Endlage, damit der Hub oben nicht anschlägt
+  if (S.x !== wa) {
+    const diff = wa - S.x;
+    busyUI = true; pill("st-loop", "Fährt in Startposition", "run");
+    const d = await post("/move_both", { steps: Math.abs(diff), dir_x: Math.sign(diff), dir_y: Math.sign(diff), delay });
+    busyUI = false;
+    if (!d) return;
+  }
+  const d = await post("/start_loop", { cycles, delay, height_pct: hub });
+  if (d) { toast("Hubzyklus gestartet", true); poll(); }
+}
+async function stopLoop() { await post("/stop_loop"); toast("Stoppt nach dem laufenden Hub", true); }
+
+// ── Anzeige ──
+function render(d) {
+  S = d;
+  const h = d.homing.xy, homed = h.status === "done" && !refInvalid, homingRun = HOMING.includes(h.status);
+  const wa = h.work_area;
+  if (stopSentIn && stopSentIn !== h.status) stopSentIn = null;
+  // Motoren
+  $("btn-on").setAttribute("aria-pressed", d.enabled); $("btn-off").setAttribute("aria-pressed", !d.enabled);
+  // Position
+  $("pos").innerHTML = d.x + "<small>Schritte</small>";
+  $("pos-sub").textContent = (homed ? Math.round(Math.min(1, Math.max(0, d.x / wa)) * 100) + " % abgesenkt" : "Nicht referenziert")
+                             + " · Motor X " + d.x + " / Motor Y " + d.y;
+  // Grafik
+  let pct;
+  if (homed && wa > 0) pct = d.x / wa;
+  else { vizMin = Math.min(vizMin, d.x); vizMax = Math.max(vizMax, d.x); pct = (d.x - vizMin) / Math.max(vizMax - vizMin, 2000); }
+  const y = 10 + Math.min(1, Math.max(0, pct)) * (220 - 10 - 11);
+  ["plate", "seal-l", "seal-r"].forEach(id => $(id).setAttribute("y", y));
+  // Status Bauplattform
+  if (!d.enabled) pill("st-plat", "Motoren aus");
+  else if (homingRun) pill("st-plat", "Referenzfahrt", "run");
+  else if (d.busy || d.loop.running || busyUI || moving) pill("st-plat", "Fährt", "run");
+  else pill("st-plat", "Bereit", "ok");
+  const lock = !d.enabled || homingRun || d.busy || d.loop.running || busyUI;
+  $("up").disabled = lock; $("down").disabled = lock;
+
+  // Referenzfahrt
+  const s1 = $("s1"), s2 = $("s2");
+  s1.className = s2.className = "";
+  $("s1-s").textContent = $("s2-s").textContent = "wartet";
+  const btn = $("ref-btn");
+  btn.classList.remove("stop"); btn.disabled = false;
+  if (h.status === "starting" || h.status === "homing_up") {
+    s1.className = "active"; $("s1-s").textContent = "fährt hoch · " + Math.abs(d.x);
+    btn.textContent = "Obere Endlage erreicht"; btn.classList.add("stop");
+  } else if (h.status === "homing_down") {
+    s1.className = "done"; $("s1-s").textContent = "Nullpunkt gesetzt";
+    s2.className = "active"; $("s2-s").textContent = "fährt runter · " + d.x;
+    btn.textContent = "Untere Endlage erreicht"; btn.classList.add("stop");
+  } else if (homed) {
+    s1.className = s2.className = "done";
+    $("s1-s").textContent = "Nullpunkt gesetzt"; $("s2-s").textContent = wa + " Schritte";
+    btn.textContent = "Neu referenzieren";
+  } else {
+    btn.textContent = "Referenzfahrt starten";
+  }
+  if (!homingRun) btn.disabled = !d.enabled || d.busy || d.loop.running || busyUI;
+  $("ref-abort").hidden = !homingRun;
+  $("wa").textContent = homed ? wa + " Schritte" : "—";
+  if (refInvalid) { pill("st-ref", "Ungültig", "warn"); $("ref-note").className = "note warn"; $("ref-note").textContent = "Die letzte Referenzfahrt wurde abgebrochen. Arbeitsbereich und Hubzyklus sind erst nach einer neuen Referenzfahrt wieder freigegeben."; }
+  else {
+    $("ref-note").className = "note";
+    $("ref-note").textContent = "Kurz vor dem Anschlag stoppen. Fährt die Plattform auf Block, zählt das Programm weiter, obwohl sich der Motor nicht mehr dreht, und der Arbeitsbereich wird zu groß.";
+    if (homingRun) pill("st-ref", h.status === "homing_down" ? "Phase 2 von 2" : "Phase 1 von 2", "run");
+    else if (homed) pill("st-ref", "Referenziert", "ok");
+    else pill("st-ref", "Nicht referenziert");
   }
 
-  // ── Step size ──
-  function setSteps(n, el) {
-    steps = n;
-    document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
-    if (el) el.classList.add('active');
+  // Ausrichten
+  $("ax-x").textContent = d.x; $("ax-y").textContent = d.y;
+  const off = d.x - d.y;
+  $("offset").textContent = (off > 0 ? "+" : "") + off + " Schritte";
+  $("offset-box").className = "offset sub" + (off !== 0 ? " bad" : "");
+  $("align-on").disabled = homingRun || d.loop.running;
+  if ((homingRun || d.loop.running) && $("align-on").checked) { $("align-on").checked = false; $("align-box").className = "off"; }
+
+  // Hubzyklus
+  const lp = d.loop;
+  $("hub-steps").textContent = homed ? Math.round(wa * hub / 100) + " Schritte" : "—";
+  const p = lp.total > 0 ? lp.current / lp.total : 0;
+  $("bar").style.width = Math.round(p * 100) + "%";
+  if (lp.running) { pill("st-loop", "Läuft", "run"); $("prog").textContent = "Zyklus " + lp.current + " von " + lp.total; $("prog-pct").textContent = Math.round(p * 100) + " %"; }
+  else {
+    if (!busyUI) pill("st-loop", homed ? "Bereit" : "Erst referenzieren", homed ? "ok" : "");
+    if (lp.total > 0) { $("prog").textContent = lp.current >= lp.total ? lp.total + " Zyklen abgeschlossen" : "Gestoppt nach " + lp.current + " von " + lp.total + " Zyklen"; $("prog-pct").textContent = Math.round(p * 100) + " %"; }
   }
+  $("loop-start").disabled = lp.running || !homed || !d.enabled || d.busy || busyUI || homingRun;
+  $("loop-stop").disabled = !lp.running;
+}
 
-  // ── Travel distance ──
-  function updateTravel(val) {
-    heightPct = parseInt(val);
-    document.getElementById("travel-val").textContent = heightPct + "%";
-  }
+async function poll() {
+  try {
+    render(await getState());
+    $("conn-dot").className = "dot ok"; $("conn-txt").textContent = "Verbunden";
+  } catch (e) { $("conn-dot").className = "dot bad"; $("conn-txt").textContent = "Keine Verbindung zum Pi"; }
+}
+setInterval(poll, 400); poll();
 
-  // ── Motor ──
-  async function enableMotor()  { updateStatus(await (await fetch("/enable",  {method:"POST"})).json()); }
-  async function disableMotor() { updateStatus(await (await fetch("/disable", {method:"POST"})).json()); }
-
-  async function emergencyStop() {
-    await fetch("/emergency_stop", {method:"POST"});
-    const d = await (await fetch("/status")).json();
-    updateStatus(d);
-  }
-
-  // ── Jog ──
-  async function jogXY(dir) {
-    if (moving) return;
-    moving = true;
-    setBadgeXY("MOVING");
-    const r = await fetch("/move_both", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({steps, dir_x: dir, dir_y: dir, delay})
-    });
-    moving = false;
-    if (r.ok) updateStatus(await r.json());
-    else setBadgeXY("READY");
-  }
-
-  // ── Homing ──
-  function setHomingButtons(started) {
-    document.getElementById("btn-home-all").disabled      = started;
-    document.getElementById("btn-home-stop").disabled     = !started;
-    document.getElementById("btn-homing-start2").disabled = started;
-    document.getElementById("btn-homing-stop2").disabled  = !started;
-  }
-
-  async function startHoming() {
-    setHomingButtons(true);
-    await fetch("/home", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({pair:"xy"})});
-  }
-
-  async function stopHoming() {
-    await fetch("/stop_homing", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({pair:"xy"})});
-    // Buttons bleiben aktiv bis Phase 2 abgeschlossen (done)
-  }
-
-  // ── Loop ──
-  async function startLoop() {
-    const cycles = parseInt(document.getElementById("loop-cycles").value) || 1;
-    const r = await fetch("/start_loop", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({cycles, delay, height_pct: heightPct})
-    });
-    if (r.ok) {
-      document.getElementById("btn-loop-start").disabled = true;
-      document.getElementById("btn-loop-stop").disabled = false;
-    }
-  }
-
-  async function stopLoop() {
-    await fetch("/stop_loop", {method:"POST"});
-  }
-
-  // ── Update UI ──
-  function setBadgeXY(text) {
-    const b = document.getElementById("badge-xy");
-    b.className = "badge " + (text === "READY" ? "badge-ready" : text === "LOCKED" ? "badge-locked" : "badge-busy");
-    b.textContent = text;
-  }
-
-  function updateVizXY(d) {
-    const workArea = d.homing.xy.work_area;
-    const pos = d.x;
-    // pos=0 → top, pos=workArea → bottom
-    let pct = workArea > 0 ? Math.max(0, Math.min(1, pos / workArea)) : 0;
-    // SVG: top=17px, bottom=223px, travel=206px, platform height=12px
-    const travel = 194;
-    const topY   = 17;
-    const y = topY + pct * travel;
-    const p = document.getElementById("platform-xy");
-    const g = document.getElementById("platform-xy-glow");
-    const l = document.getElementById("platform-xy-label");
-    if (p) {
-      p.setAttribute("y", y);
-      g.setAttribute("y", y - 0.6);
-      l.setAttribute("y", y - 4);
-    }
-
-    const status = d.busy ? "Moving" : d.homing.xy.status === "homing_up" ? "Homing ↑" : d.homing.xy.status === "homing_down" ? "Homing ↓" : "Synchronized Tracking";
-    document.getElementById("viz-xy-status").textContent = "Status: " + status;
-  }
-
-  function updateHomingUI(h) {
-    const p1b = document.getElementById("phase1-badge");
-    const p2b = document.getElementById("phase2-badge");
-
-    if (h.status === "homing_up") {
-      p1b.className = "phase-badge phase-active"; p1b.textContent = "ACTIVE";
-      p2b.className = "phase-badge phase-idle";   p2b.textContent = "WAIT";
-      document.getElementById("homing-hint").textContent = "Motor fährt nach oben → Stop drücken wenn Anschlag erreicht.";
-      setHomingButtons(true);
-    } else if (h.status === "homing_down") {
-      p1b.className = "phase-badge phase-done";   p1b.textContent = "DONE ✓";
-      p2b.className = "phase-badge phase-active"; p2b.textContent = "ACTIVE";
-      document.getElementById("homing-hint").textContent = "Nullpunkt gesetzt. Motor fährt nach unten → Stop drücken wenn Anschlag erreicht.";
-      setHomingButtons(true);
-    } else if (h.status === "done") {
-      p1b.className = "phase-badge phase-done"; p1b.textContent = "DONE ✓";
-      p2b.className = "phase-badge phase-done"; p2b.textContent = "DONE ✓";
-      document.getElementById("wa-val").textContent = h.work_area;
-      document.getElementById("tele-wa").textContent = h.work_area + " Steps";
-      document.getElementById("homing-hint").textContent = "Homing abgeschlossen. Arbeitsbereich: " + h.work_area + " Schritte.";
-      setHomingButtons(false);
-      document.getElementById("btn-loop-start").disabled = false;
-      document.getElementById("progress-section").style.opacity = "1";
-    }
-  }
-
-  function updateLoopUI(lp) {
-    const ring    = document.getElementById("loop-ring");
-    const mainTxt = document.getElementById("loop-main");
-    const subTxt  = document.getElementById("loop-sub");
-    const tele    = document.getElementById("tele-status");
-
-    if (lp.running) {
-      const pct = lp.total > 0 ? lp.current / lp.total : 0;
-      const offset = 326.7 * (1 - pct);
-      ring.setAttribute("stroke-dashoffset", offset);
-      mainTxt.textContent = lp.current + "/" + lp.total;
-      subTxt.textContent  = "RUNNING";
-      tele.textContent    = "RUNNING";
-      tele.style.color    = "var(--orange)";
-      document.getElementById("prog-bar").style.width = Math.round(pct*100) + "%";
-      document.getElementById("prog-text").textContent = "Durchlauf " + lp.current + " / " + lp.total;
-      document.getElementById("prog-pct").textContent  = Math.round(pct*100) + "%";
-      document.getElementById("btn-loop-start").disabled = true;
-      document.getElementById("btn-loop-stop").disabled  = false;
-    } else if (lp.total > 0) {
-      ring.setAttribute("stroke-dashoffset", "0");
-      mainTxt.textContent = "DONE";
-      subTxt.textContent  = lp.total + " Cycles";
-      tele.textContent    = "IDLE";
-      tele.style.color    = "var(--muted)";
-      document.getElementById("prog-bar").style.width = "100%";
-      document.getElementById("prog-text").textContent = "Fertig — " + lp.total + " Durchläufe";
-      document.getElementById("prog-pct").textContent  = "100%";
-      document.getElementById("btn-loop-start").disabled = false;
-      document.getElementById("btn-loop-stop").disabled  = true;
-    }
-  }
-
-  function updateStatus(d) {
-    // Motor
-    document.getElementById("motor-dot").className = "motor-dot" + (d.enabled ? " on" : "");
-    document.getElementById("motor-text").textContent = d.enabled ? "Aktiv" : "Inaktiv";
-
-    // Position
-    document.getElementById("pos-x").innerHTML = d.x + '<span class="pos-unit">st</span>';
-    document.getElementById("pos-y").innerHTML = d.y + '<span class="pos-unit">st</span>';
-
-    // Badge
-    setBadgeXY(d.busy ? "BUSY" : "READY");
-
-    // Visualization
-    updateVizXY(d);
-
-    // Homing
-    updateHomingUI(d.homing.xy);
-
-    // Loop
-    updateLoopUI(d.loop);
-  }
-
-  // Keyboard: ↑↓ → jog
-  document.addEventListener("keydown", e => {
-    if (e.key === "ArrowUp")   jogXY(-1);
-    if (e.key === "ArrowDown") jogXY(1);
-  });
-
-  // Polling 500ms
-  setInterval(async () => {
-    try {
-      const r = await fetch("/status");
-      if (r.ok) updateStatus(await r.json());
-    } catch(e) {}
-  }, 500);
-
-  fetch("/status").then(r => r.json()).then(updateStatus);
+// ── Tastatur ──
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") { e.preventDefault(); emergencyStop(); return; }
+  if (e.target.matches("input, textarea")) return;
+  if (e.key === "ArrowUp")   { e.preventDefault(); jog(-1); }
+  if (e.key === "ArrowDown") { e.preventDefault(); jog(1); }
+  if (e.key === "Enter" && S && HOMING.includes(S.homing.xy.status)) { e.preventDefault(); refAction(); }
+});
 </script>
 </body>
 </html>
