@@ -412,7 +412,10 @@ function progInfo(p) {
   if (!p) return { par: "—", dur: 0 };
   if (p.typ === "schicht") {
     const n = Math.round(p.hoehe_mm * 1000 / p.schicht_um), st = p.schicht_um / 1000 * SPMM;
-    return { par: n + " × " + p.schicht_um + " µm, " + p.pause_s + " s Pause", dur: n * (st / p.schritte_s + p.pause_s) };
+    const nh = p.hub_alle ? Math.floor((n - 1) / p.hub_alle) : 0;
+    const hubDur = nh * 2 * p.hub_mm * SPMM / (p.hub_schritte_s || 2000);
+    return { par: n + " × " + p.schicht_um + " µm, " + p.pause_s + " s Pause" + (nh ? ", " + nh + " Zwischenhübe à " + p.hub_mm + " mm" : ""),
+             dur: n * (st / p.schritte_s + p.pause_s) + hubDur };
   }
   const hs = Math.round(p.hub_mm * SPMM);
   return { par: p.zyklen + " × " + p.hub_mm + " mm Hub, " + p.schritte_s + " Schritte/s", dur: p.zyklen * 2 * hs / p.schritte_s };
@@ -435,8 +438,14 @@ async function startProgram() {
   const p = curProg(); if (!p || !S) return;
   const dly = 1 / (2 * p.schritte_s);
   if (p.typ === "schicht") {
-    if (!confirm("Start an der aktuellen Position (" + S.x + " Schritte). Plattform bündig mit der Bauebene?")) return;
-    const d = await post("/start_layers", { layer_um: p.schicht_um, pause_s: p.pause_s, height_mm: p.hoehe_mm, delay: dly, program: p.name });
+    if (!confirm("Plattform fährt auf die Startposition 0 (obere Endlage aus der Referenzfahrt) und startet dann. Auffangrahmen eingelegt, Pulver eingefüllt?")) return;
+    if (S.x !== 0) {   // Startposition: obere Endlage (Referenz mit Spacern)
+      busyUI = true; pill("st-prog", "Fährt in Startposition", "run");
+      const d0 = await post("/move_both", { steps: Math.abs(S.x), dir_x: -Math.sign(S.x), dir_y: -Math.sign(S.x), delay: dly });
+      busyUI = false; if (!d0) return;
+    }
+    const d = await post("/start_layers", { layer_um: p.schicht_um, pause_s: p.pause_s, height_mm: p.hoehe_mm, delay: dly, program: p.name,
+                                            hub_every: p.hub_alle || 0, hub_mm: p.hub_mm || 0, hub_delay: 1 / (2 * (p.hub_schritte_s || 2000)) });
     if (d) toast("Programm gestartet", true);
     return;
   }
@@ -525,7 +534,7 @@ function render(d) {
   const pp = lp.total > 0 ? lp.current / lp.total : 0;
   if (lastProg && isProg) {
     $("pbar").style.width = Math.round(pp * 100) + "%"; $("pprog-pct").textContent = Math.round(pp * 100) + " %";
-    const unit = lastProg.mode === "schicht" ? "Schicht" : "Zyklus";
+    const unit = lastProg.mode === "schicht" ? (lp.hub ? "Zwischenhub nach Schicht" : "Schicht") : "Zyklus";
     const file = lastProg.mode === "schicht" && lastProg.file ? " · Protokoll: " + lastProg.file : "";
     $("pprog").textContent = lastProg.name + ": " + (lp.running ? unit + " " + lp.current + " von " + lp.total
       : (lp.current >= lp.total ? "fertig" : "gestoppt bei " + lp.current + " von " + lp.total)) + file;

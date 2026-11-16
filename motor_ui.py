@@ -22,7 +22,7 @@ homing     = {
     "xy": {"status": "idle", "work_area": 0},
     "za": {"status": "idle", "work_area": 0},
 }
-loop_state = {"running": False, "total": 0, "current": 0, "mode": "hub", "program": ""}
+loop_state = {"running": False, "total": 0, "current": 0, "mode": "hub", "program": "", "hub": False}
 layer_info = {"layer_um": 0, "pause_s": 0, "height_mm": 0, "file": ""}
 
 STEPS_PER_MM = 3200 / 3          # 1/16-Mikroschritt, Tr12 x 3
@@ -139,7 +139,7 @@ def run_loop(cycles, delay, height_pct=100, hub_steps=None, program=""):
         loop_state["running"] = False
 
 
-def run_layers(layer_um, pause_s, height_mm, delay, program=""):
+def run_layers(layer_um, pause_s, height_mm, delay, program="", hub_every=0, hub_mm=0.0, hub_delay=0.0005):
     """Pulvertest im Schichtmodus: Plattform senkt sich ab der aktuellen Position schichtweise
     um layer_um ab, wartet pause_s (Beschichten/Belichten) und protokolliert jede Schicht."""
     loop_stop.clear()
@@ -156,7 +156,10 @@ def run_layers(layer_um, pause_s, height_mm, delay, program=""):
             f.write(f"# Pulvertest Schichtmodus{' (' + program + ')' if program else ''}, Start {t0:%d.%m.%Y %H:%M:%S}\n")
             f.write(f"# Schichtdicke {layer_um} um, Pause {pause_s} s, Gesamthoehe {height_mm} mm, "
                     f"{n_layers} Schichten, {round(1 / (2 * delay))} Schritte/s, Startposition {start} Schritte\n")
-            f.write("schicht;zeit;sekunden_seit_start;position_schritte;absenkung_mm\n")
+            if hub_every:
+                f.write(f"# Zwischenhub alle {hub_every} Schichten: {hub_mm} mm runter und wieder hoch, "
+                        f"{round(1 / (2 * hub_delay))} Schritte/s\n")
+            f.write("schicht;zeit;sekunden_seit_start;position_schritte;absenkung_mm;ereignis\n")
             for n in range(1, n_layers + 1):
                 if loop_stop.is_set() or abort.is_set():
                     break
@@ -168,8 +171,22 @@ def run_layers(layer_um, pause_s, height_mm, delay, program=""):
                 loop_state["current"] = n
                 now = datetime.now()
                 pos = axes["x"]["position"]
-                f.write(f"{n};{now:%H:%M:%S};{(now - t0).total_seconds():.1f};{pos};{(pos - start) / STEPS_PER_MM:.3f}\n")
+                f.write(f"{n};{now:%H:%M:%S};{(now - t0).total_seconds():.1f};{pos};{(pos - start) / STEPS_PER_MM:.3f};schicht\n")
                 f.flush()
+                if hub_every and n % hub_every == 0 and n < n_layers:
+                    hs = round(hub_mm * STEPS_PER_MM)
+                    loop_state["hub"] = True
+                    with move_lock:
+                        move_parallel(hs, 1, hub_delay, pair="xy", stop_event=loop_stop)
+                        if not (loop_stop.is_set() or abort.is_set()):
+                            move_parallel(axes["x"]["position"] - pos, -1, hub_delay, pair="xy", stop_event=loop_stop)
+                    loop_state["hub"] = False
+                    if loop_stop.is_set() or abort.is_set():
+                        break
+                    now = datetime.now()
+                    f.write(f"{n};{now:%H:%M:%S};{(now - t0).total_seconds():.1f};{axes['x']['position']};"
+                            f"{(axes['x']['position'] - start) / STEPS_PER_MM:.3f};zwischenhub {hub_mm} mm\n")
+                    f.flush()
                 if n < n_layers and loop_stop.wait(pause_s):
                     break
             else:
@@ -178,6 +195,7 @@ def run_layers(layer_um, pause_s, height_mm, delay, program=""):
     except Exception as e:
         print("Fehler im Schichtmodus:", e)
     finally:
+        loop_state["hub"]     = False
         loop_state["running"] = False
 
 
@@ -277,13 +295,18 @@ def start_layers_route():
     pause_s   = float(d.get("pause_s", 10))
     height_mm = float(d.get("height_mm", 5))
     delay     = float(d.get("delay", 0.002))
-    if not (5 <= layer_um <= 1000) or not (0 <= pause_s <= 600) or not (0 < height_mm <= 100):
+    hub_every = int(d.get("hub_every", 0))
+    hub_mm    = float(d.get("hub_mm", 0))
+    hub_delay = float(d.get("hub_delay", 0.0005))
+    if not (5 <= layer_um <= 1000) or not (0 <= pause_s <= 600) or not (0 < height_mm <= 100) \
+       or hub_every < 0 or not (0 <= hub_mm <= 50) or hub_delay < 0.00015:
         return jsonify({"error": "Ungültige Parameter"}), 400
-    end = axes["x"]["position"] + round(height_mm * STEPS_PER_MM)
+    end = axes["x"]["position"] + round((height_mm + (hub_mm if hub_every else 0)) * STEPS_PER_MM)
     if axes["x"]["position"] < 0 or end > homing["xy"]["work_area"]:
         return jsonify({"error": "Gesamthöhe passt ab hier nicht in den Arbeitsbereich"}), 400
     program   = str(d.get("program", ""))[:80]
-    threading.Thread(target=run_layers, args=(layer_um, pause_s, height_mm, delay, program), daemon=True).start()
+    threading.Thread(target=run_layers, args=(layer_um, pause_s, height_mm, delay, program, hub_every, hub_mm, hub_delay),
+                     daemon=True).start()
     return jsonify({"status": "started"})
 
 
