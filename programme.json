@@ -1,0 +1,36 @@
+[
+  {
+    "name": "SLM-Schichtbau 50 µm, 5 mm",
+    "typ": "schicht",
+    "beschreibung": "Pulvertest wie Hahn et al.: 5 mm Bauhöhe in 100 Schichten à 50 µm, je 2,9 s Pause (Beschichten). Start an der aktuellen Position (Plattform bündig mit der Bauebene).",
+    "schicht_um": 50,
+    "pause_s": 2.9,
+    "hoehe_mm": 5,
+    "schritte_s": 1000
+  },
+  {
+    "name": "SLM-Schichtbau 30 µm, 3 mm",
+    "typ": "schicht",
+    "beschreibung": "Feine Schichten: 3 mm in 100 Schichten à 30 µm, je 2,9 s Pause.",
+    "schicht_um": 30,
+    "pause_s": 2.9,
+    "hoehe_mm": 3,
+    "schritte_s": 1000
+  },
+  {
+    "name": "Dauerlauf 5 mm Hub",
+    "typ": "hub",
+    "beschreibung": "Beschleunigter Verschleißtest: 5 mm hoch und runter, 50 Zyklen ab der unteren Endlage.",
+    "hub_mm": 5,
+    "zyklen": 50,
+    "schritte_s": 2000
+  },
+  {
+    "name": "Kurztest 1 mm",
+    "typ": "hub",
+    "beschreibung": "Funktionstest nach Umbau oder Update: 1 mm Hub, 5 Zyklen.",
+    "hub_mm": 1,
+    "zyklen": 5,
+    "schritte_s": 1000
+  }
+]

@@ -183,7 +183,7 @@
             <button id="down" onclick="jog(1)">▼ Runter</button>
           </div>
           <div class="rowlab"><span>Geschwindigkeit</span><span class="num" id="spd-val"></span></div>
-          <input type="range" id="spd" min="1" max="20" value="17" aria-label="Geschwindigkeit">
+          <input type="range" id="spd" min="50" max="3000" step="50" value="1000" aria-label="Geschwindigkeit">
           <p class="keys"><kbd>↑</kbd> <kbd>↓</kbd> verfahren · <kbd>Enter</kbd> Endlage erreicht · <kbd>Esc</kbd> Not-Aus</p>
         </div>
       </div>
@@ -254,6 +254,23 @@
     <div class="prog num"><span id="prog">Noch kein Zyklus gelaufen</span><span id="prog-pct"></span></div>
   </section>
 
+  <!-- Prüfprogramme -->
+  <section class="card" aria-labelledby="h-prog">
+    <h2 id="h-prog">Prüfprogramme <small>standardisiert, aus programme.json</small><span class="pill" id="st-prog">Erst referenzieren</span></h2>
+    <p class="sub" id="prog-desc">Programme werden geladen …</p>
+    <div class="loop">
+      <div><label class="l" for="prog-sel">Programm</label><select id="prog-sel" style="width:100%;border:1px solid #b9c5d1;border-radius:6px;padding:.5rem .6rem"></select></div>
+      <div><span class="l">Parameter</span><b class="num" id="prog-par">—</b></div>
+      <div><span class="l">Dauer ca.</span><b class="num" id="prog-dur">—</b></div>
+      <div class="btns">
+        <button class="btn" id="prog-start" onclick="startProgram()" disabled>Starten</button>
+        <button class="btn sec" id="prog-stop" onclick="stopProgram()" disabled>Stoppen</button>
+      </div>
+    </div>
+    <div class="bar"><div id="pbar"></div></div>
+    <div class="prog num"><span id="pprog">Noch kein Programm gelaufen</span><span id="pprog-pct"></span></div>
+  </section>
+
   <p class="other">Pulverplattform (Motor Z + A): im Programm nicht angeschlossen.</p>
 </main>
 
@@ -287,7 +304,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const pill = (id, txt, cls) => { $(id).textContent = txt; $(id).className = "pill " + (cls || ""); };
 
 // ── Einstellungen ──
-function setSpeed(v) { delay = parseFloat((0.0105 - v * 0.0005).toFixed(4)); $("spd-val").textContent = Math.round(1 / (2 * delay)) + " Schritte/s"; }
+function setSpeed(v) { v = parseInt(v); delay = 1 / (2 * v); $("spd-val").textContent = v + " Schritte/s (≈ " + (v / 1070).toFixed(2).replace(".", ",") + " mm/s)"; }
 $("spd").addEventListener("input", e => setSpeed(e.target.value)); setSpeed($("spd").value);
 $("seg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; steps = +b.dataset.s; [...$("seg").children].forEach(x => x.setAttribute("aria-pressed", x === b)); });
 $("hub").addEventListener("input", e => { hub = +e.target.value; $("hub-val").textContent = hub + " %"; if (S) render(S); });
@@ -386,6 +403,54 @@ async function startLoop() {
   const d = await post("/start_loop", { cycles, delay, height_pct: hub });
   if (d) { toast("Hubzyklus gestartet", true); poll(); }
 }
+// ── Prüfprogramme ──
+const SPMM = 3200 / 3;
+let PROGS = [], lastProg = null;
+function curProg() { return PROGS[parseInt($("prog-sel").value)] || null; }
+function fmtDur(s) { s = Math.round(s); return s >= 60 ? Math.floor(s / 60) + " min " + (s % 60) + " s" : s + " s"; }
+function progInfo(p) {
+  if (!p) return { par: "—", dur: 0 };
+  if (p.typ === "schicht") {
+    const n = Math.round(p.hoehe_mm * 1000 / p.schicht_um), st = p.schicht_um / 1000 * SPMM;
+    return { par: n + " × " + p.schicht_um + " µm, " + p.pause_s + " s Pause", dur: n * (st / p.schritte_s + p.pause_s) };
+  }
+  const hs = Math.round(p.hub_mm * SPMM);
+  return { par: p.zyklen + " × " + p.hub_mm + " mm Hub, " + p.schritte_s + " Schritte/s", dur: p.zyklen * 2 * hs / p.schritte_s };
+}
+function showProg() {
+  const p = curProg(), i = progInfo(p);
+  $("prog-desc").textContent = p ? (p.beschreibung || "") : "Keine Programme in programme.json";
+  $("prog-par").textContent = i.par; $("prog-dur").textContent = p ? fmtDur(i.dur) : "—";
+}
+async function loadPrograms() {
+  try {
+    const r = await fetch("/programme", {cache: "no-store"}); const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.status);
+    PROGS = d; $("prog-sel").innerHTML = d.map((p, i) => `<option value="${i}">${p.name}</option>`).join("");
+  } catch (e) { $("prog-desc").textContent = "Programme nicht geladen: " + e.message; }
+  showProg();
+}
+$("prog-sel").addEventListener("change", showProg); loadPrograms();
+async function startProgram() {
+  const p = curProg(); if (!p || !S) return;
+  const dly = 1 / (2 * p.schritte_s);
+  if (p.typ === "schicht") {
+    if (!confirm("Start an der aktuellen Position (" + S.x + " Schritte). Plattform bündig mit der Bauebene?")) return;
+    const d = await post("/start_layers", { layer_um: p.schicht_um, pause_s: p.pause_s, height_mm: p.hoehe_mm, delay: dly, program: p.name });
+    if (d) toast("Programm gestartet", true);
+    return;
+  }
+  const wa = S.homing.xy.work_area;
+  if (S.x !== wa) {   // Startposition: untere Endlage
+    busyUI = true; pill("st-prog", "Fährt in Startposition", "run");
+    const diff = wa - S.x;
+    const d = await post("/move_both", { steps: Math.abs(diff), dir_x: Math.sign(diff), dir_y: Math.sign(diff), delay: dly });
+    busyUI = false; if (!d) return;
+  }
+  const d = await post("/start_loop", { cycles: p.zyklen, delay: dly, hub_mm: p.hub_mm, program: p.name });
+  if (d) toast("Programm gestartet", true);
+}
+async function stopProgram() { await post("/stop_loop"); toast("Programm gestoppt", true); }
 async function stopLoop() { await post("/stop_loop"); toast("Hubzyklus gestoppt", true); }
 
 // ── Anzeige ──
@@ -454,15 +519,32 @@ function render(d) {
   $("align-on").disabled = homingRun || d.loop.running;
   if ((homingRun || d.loop.running) && $("align-on").checked) { $("align-on").checked = false; $("align-box").className = "off"; }
 
+  // Prüfprogramme
+  const lp = d.loop, isProg = !!lp.program, progActive = lp.running && isProg;
+  if (isProg) lastProg = { name: lp.program, mode: lp.mode, file: d.layers.file };
+  const pp = lp.total > 0 ? lp.current / lp.total : 0;
+  if (lastProg && isProg) {
+    $("pbar").style.width = Math.round(pp * 100) + "%"; $("pprog-pct").textContent = Math.round(pp * 100) + " %";
+    const unit = lastProg.mode === "schicht" ? "Schicht" : "Zyklus";
+    const file = lastProg.mode === "schicht" && lastProg.file ? " · Protokoll: " + lastProg.file : "";
+    $("pprog").textContent = lastProg.name + ": " + (lp.running ? unit + " " + lp.current + " von " + lp.total
+      : (lp.current >= lp.total ? "fertig" : "gestoppt bei " + lp.current + " von " + lp.total)) + file;
+  }
+  if (progActive) pill("st-prog", "Läuft", "run");
+  else if (!busyUI) pill("st-prog", homed ? "Bereit" : "Erst referenzieren", homed ? "ok" : "");
+  $("prog-start").disabled = lp.running || !homed || !d.enabled || d.busy || busyUI || homingRun || !curProg();
+  $("prog-stop").disabled = !progActive;
+  $("prog-sel").disabled = lp.running;
+
   // Hubzyklus
-  const lp = d.loop;
+  if (progActive) { $("loop-start").disabled = true; $("loop-stop").disabled = true; return; }
   $("hub-steps").textContent = homed ? Math.round(wa * hub / 100) + " Schritte" : "—";
-  const p = lp.total > 0 ? lp.current / lp.total : 0;
+  const p = lp.total > 0 && !isProg ? lp.current / lp.total : 0;
   $("bar").style.width = Math.round(p * 100) + "%";
   if (lp.running) { pill("st-loop", "Läuft", "run"); $("prog").textContent = "Zyklus " + lp.current + " von " + lp.total; $("prog-pct").textContent = Math.round(p * 100) + " %"; }
   else {
     if (!busyUI) pill("st-loop", homed ? "Bereit" : "Erst referenzieren", homed ? "ok" : "");
-    if (lp.total > 0) { $("prog").textContent = lp.current >= lp.total ? lp.total + " Zyklen abgeschlossen" : "Gestoppt nach " + lp.current + " von " + lp.total + " Zyklen"; $("prog-pct").textContent = Math.round(p * 100) + " %"; }
+    if (lp.total > 0 && !isProg) { $("prog").textContent = lp.current >= lp.total ? lp.total + " Zyklen abgeschlossen" : "Gestoppt nach " + lp.current + " von " + lp.total + " Zyklen"; $("prog-pct").textContent = Math.round(p * 100) + " %"; }
   }
   $("loop-start").disabled = lp.running || !homed || !d.enabled || d.busy || busyUI || homingRun;
   $("loop-stop").disabled = !lp.running;

@@ -4,7 +4,9 @@ os.environ["GPIOZERO_PIN_FACTORY"] = "lgpio"
 from flask import Flask, request, jsonify, render_template
 from gpiozero import OutputDevice
 from time import sleep
+from datetime import datetime
 import threading
+import json
 
 app = Flask(__name__)
 
@@ -20,7 +22,11 @@ homing     = {
     "xy": {"status": "idle", "work_area": 0},
     "za": {"status": "idle", "work_area": 0},
 }
-loop_state = {"running": False, "total": 0, "current": 0}
+loop_state = {"running": False, "total": 0, "current": 0, "mode": "hub", "program": ""}
+layer_info = {"layer_um": 0, "pause_s": 0, "height_mm": 0, "file": ""}
+
+STEPS_PER_MM = 3200 / 3          # 1/16-Mikroschritt, Tr12 x 3
+PROTOKOLL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "protokolle")
 move_lock  = threading.Lock()
 stop_flags = {"xy": False, "za": False}
 abort      = threading.Event()   # Not-Aus / Motoren aus: beendet jede laufende Fahrt sofort
@@ -40,7 +46,7 @@ def do_move_sync(axis_names, steps, direction, delay_end=0.002, stop_event=None)
     """Faehrt mehrere Achsen taktgleich: beide STEP-Pins gehen im selben Takt high/low.
     Pulsform und Rampe identisch zur bisherigen do_move()."""
     delay_start = min(delay_end * 3, 0.010)
-    ramp_steps  = min(30, abs(steps) // 2)
+    ramp_steps  = min(30 if delay_end >= 0.0005 else 150, abs(steps) // 2)   # laengere Rampe ueber 1000 Schritte/s
     devs = [axes[ax] for ax in axis_names if ax in axes]
     for a in devs:
         a["dir"].on() if direction > 0 else a["dir"].off()
@@ -111,12 +117,14 @@ def run_homing(pair="xy", speed=0.0005):
         stop_flags[pair] = False
 
 
-def run_loop(cycles, delay, height_pct=100):
+def run_loop(cycles, delay, height_pct=100, hub_steps=None, program=""):
     loop_stop.clear()
+    loop_state["mode"]    = "hub"
+    loop_state["program"] = program
     loop_state["running"] = True
     loop_state["total"]   = cycles
     loop_state["current"] = 0
-    work = int(homing["xy"]["work_area"] * height_pct / 100)
+    work = hub_steps if hub_steps else int(homing["xy"]["work_area"] * height_pct / 100)
     try:
         for i in range(cycles):
             if loop_stop.is_set() or abort.is_set():
@@ -127,6 +135,48 @@ def run_loop(cycles, delay, height_pct=100):
                 move_parallel(work,  1, delay, pair="xy", stop_event=loop_stop)
     except Exception as e:
         print("Fehler im Hubzyklus:", e)
+    finally:
+        loop_state["running"] = False
+
+
+def run_layers(layer_um, pause_s, height_mm, delay, program=""):
+    """Pulvertest im Schichtmodus: Plattform senkt sich ab der aktuellen Position schichtweise
+    um layer_um ab, wartet pause_s (Beschichten/Belichten) und protokolliert jede Schicht."""
+    loop_stop.clear()
+    n_layers = max(1, round(height_mm * 1000 / layer_um))
+    start    = axes["x"]["position"]
+    loop_state.update(running=True, mode="schicht", total=n_layers, current=0, program=program)
+    os.makedirs(PROTOKOLL_DIR, exist_ok=True)
+    t0    = datetime.now()
+    fname = os.path.join(PROTOKOLL_DIR, "pulvertest_" + t0.strftime("%Y%m%d_%H%M%S") + ".csv")
+    layer_info.update(layer_um=layer_um, pause_s=pause_s, height_mm=height_mm, file=os.path.basename(fname))
+    result = "abgebrochen"
+    try:
+        with open(fname, "w", encoding="utf-8") as f:
+            f.write(f"# Pulvertest Schichtmodus{' (' + program + ')' if program else ''}, Start {t0:%d.%m.%Y %H:%M:%S}\n")
+            f.write(f"# Schichtdicke {layer_um} um, Pause {pause_s} s, Gesamthoehe {height_mm} mm, "
+                    f"{n_layers} Schichten, {round(1 / (2 * delay))} Schritte/s, Startposition {start} Schritte\n")
+            f.write("schicht;zeit;sekunden_seit_start;position_schritte;absenkung_mm\n")
+            for n in range(1, n_layers + 1):
+                if loop_stop.is_set() or abort.is_set():
+                    break
+                target = start + round(n * layer_um / 1000 * STEPS_PER_MM)
+                with move_lock:
+                    move_parallel(target - axes["x"]["position"], 1, delay, pair="xy", stop_event=loop_stop)
+                if loop_stop.is_set() or abort.is_set():
+                    break
+                loop_state["current"] = n
+                now = datetime.now()
+                pos = axes["x"]["position"]
+                f.write(f"{n};{now:%H:%M:%S};{(now - t0).total_seconds():.1f};{pos};{(pos - start) / STEPS_PER_MM:.3f}\n")
+                f.flush()
+                if n < n_layers and loop_stop.wait(pause_s):
+                    break
+            else:
+                result = "fertig"
+            f.write(f"# Ende {datetime.now():%d.%m.%Y %H:%M:%S}: {result}, {loop_state['current']} von {n_layers} Schichten\n")
+    except Exception as e:
+        print("Fehler im Schichtmodus:", e)
     finally:
         loop_state["running"] = False
 
@@ -208,7 +258,32 @@ def start_loop_route():
     cycles      = int(d.get("cycles", 1))
     delay       = float(d.get("delay", 0.002))
     height_pct  = int(d.get("height_pct", 100))
-    threading.Thread(target=run_loop, args=(cycles, delay, height_pct), daemon=True).start()
+    hub_mm      = float(d.get("hub_mm", 0))
+    hub_steps   = round(hub_mm * STEPS_PER_MM) if hub_mm > 0 else None
+    if hub_steps and hub_steps > homing["xy"]["work_area"]:
+        return jsonify({"error": "Hub ist größer als der Arbeitsbereich"}), 400
+    program     = str(d.get("program", ""))[:80]
+    threading.Thread(target=run_loop, args=(cycles, delay, height_pct, hub_steps, program), daemon=True).start()
+    return jsonify({"status": "started"})
+
+
+@app.route("/start_layers", methods=["POST"])
+def start_layers_route():
+    if not state["enabled"]:              return jsonify({"error": "Motor nicht aktiviert"}), 400
+    if homing["xy"]["status"] != "done": return jsonify({"error": "Erst Homing durchführen"}), 400
+    if loop_state["running"] or move_lock.locked(): return jsonify({"error": "Es läuft bereits eine Fahrt"}), 400
+    d         = request.get_json() or {}
+    layer_um  = float(d.get("layer_um", 50))
+    pause_s   = float(d.get("pause_s", 10))
+    height_mm = float(d.get("height_mm", 5))
+    delay     = float(d.get("delay", 0.002))
+    if not (5 <= layer_um <= 1000) or not (0 <= pause_s <= 600) or not (0 < height_mm <= 100):
+        return jsonify({"error": "Ungültige Parameter"}), 400
+    end = axes["x"]["position"] + round(height_mm * STEPS_PER_MM)
+    if axes["x"]["position"] < 0 or end > homing["xy"]["work_area"]:
+        return jsonify({"error": "Gesamthöhe passt ab hier nicht in den Arbeitsbereich"}), 400
+    program   = str(d.get("program", ""))[:80]
+    threading.Thread(target=run_layers, args=(layer_um, pause_s, height_mm, delay, program), daemon=True).start()
     return jsonify({"status": "started"})
 
 
@@ -238,6 +313,16 @@ def stop_loop():
     return jsonify({"status": "stopping"})
 
 
+@app.route("/programme")
+def programme():
+    """Prüfprogramme aus programme.json (einmal konfigurieren, im Dashboard auswählen)."""
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "programme.json"), encoding="utf-8") as f:
+            return jsonify(json.load(f))
+    except Exception as e:
+        return jsonify({"error": "programme.json nicht lesbar: " + str(e)}), 500
+
+
 @app.route("/status")
 def status():
     return jsonify(get_state())
@@ -250,6 +335,7 @@ def get_state():
         "y":         axes["y"]["position"],
         "homing":    homing,
         "loop":      loop_state,
+        "layers":    layer_info,
         "busy":      move_lock.locked(),
     }
 
