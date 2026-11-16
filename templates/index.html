@@ -386,7 +386,7 @@ async function startLoop() {
   const d = await post("/start_loop", { cycles, delay, height_pct: hub });
   if (d) { toast("Hubzyklus gestartet", true); poll(); }
 }
-async function stopLoop() { await post("/stop_loop"); toast("Stoppt nach dem laufenden Hub", true); }
+async function stopLoop() { await post("/stop_loop"); toast("Hubzyklus gestoppt", true); }
 
 // ── Anzeige ──
 function render(d) {

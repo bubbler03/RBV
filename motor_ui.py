@@ -24,6 +24,7 @@ loop_state = {"running": False, "total": 0, "current": 0}
 move_lock  = threading.Lock()
 stop_flags = {"xy": False, "za": False}
 abort      = threading.Event()   # Not-Aus / Motoren aus: beendet jede laufende Fahrt sofort
+loop_stop  = threading.Event()   # "Stoppen" im Hubzyklus: beendet den laufenden Hub sofort
 
 
 PAIR_AXES = {
@@ -35,7 +36,7 @@ def do_move(axis, steps, direction, delay_end=0.002):
     return do_move_sync([axis], steps, direction, delay_end)
 
 
-def do_move_sync(axis_names, steps, direction, delay_end=0.002):
+def do_move_sync(axis_names, steps, direction, delay_end=0.002, stop_event=None):
     """Faehrt mehrere Achsen taktgleich: beide STEP-Pins gehen im selben Takt high/low.
     Pulsform und Rampe identisch zur bisherigen do_move()."""
     delay_start = min(delay_end * 3, 0.010)
@@ -46,7 +47,7 @@ def do_move_sync(axis_names, steps, direction, delay_end=0.002):
     sleep(0.001)
     moved = 0
     for i in range(abs(steps)):
-        if abort.is_set():
+        if abort.is_set() or (stop_event is not None and stop_event.is_set()):
             break
         d = delay_start - (delay_start - delay_end) * (i / ramp_steps) if i < ramp_steps else delay_end
         for a in devs: a["step"].on()
@@ -58,8 +59,8 @@ def do_move_sync(axis_names, steps, direction, delay_end=0.002):
     return moved
 
 
-def move_parallel(steps, direction, delay=0.002, pair="xy"):
-    return do_move_sync(PAIR_AXES[pair], steps, direction, delay)
+def move_parallel(steps, direction, delay=0.002, pair="xy", stop_event=None):
+    return do_move_sync(PAIR_AXES[pair], steps, direction, delay, stop_event)
 
 
 def move_until_stop(pair, direction, speed):
@@ -111,18 +112,19 @@ def run_homing(pair="xy", speed=0.0005):
 
 
 def run_loop(cycles, delay, height_pct=100):
+    loop_stop.clear()
     loop_state["running"] = True
     loop_state["total"]   = cycles
     loop_state["current"] = 0
     work = int(homing["xy"]["work_area"] * height_pct / 100)
     try:
         for i in range(cycles):
-            if not loop_state["running"] or abort.is_set():
+            if loop_stop.is_set() or abort.is_set():
                 break
             loop_state["current"] = i + 1
             with move_lock:
-                move_parallel(work, -1, delay, pair="xy")
-                move_parallel(work,  1, delay, pair="xy")
+                move_parallel(work, -1, delay, pair="xy", stop_event=loop_stop)
+                move_parallel(work,  1, delay, pair="xy", stop_event=loop_stop)
     except Exception as e:
         print("Fehler im Hubzyklus:", e)
     finally:
@@ -146,7 +148,7 @@ def enable_motor():
 @app.route("/disable", methods=["POST"])
 def disable_motor():
     abort.set()                      # laufende Fahrt beenden, sonst laeuft sie nach "Ein" weiter
-    loop_state["running"] = False
+    loop_stop.set()
     enable.off(); state["enabled"] = False
     return jsonify(get_state())
 
@@ -215,7 +217,7 @@ def emergency_stop():
     abort.set()
     stop_flags["xy"]       = True
     stop_flags["za"]       = True
-    loop_state["running"]  = False
+    loop_stop.set()
     enable.off()
     state["enabled"]       = False
     return jsonify(get_state())
@@ -232,7 +234,7 @@ def stop_homing():
 
 @app.route("/stop_loop", methods=["POST"])
 def stop_loop():
-    loop_state["running"] = False
+    loop_stop.set()                  # bricht auch den gerade laufenden Hub sofort ab
     return jsonify({"status": "stopping"})
 
 
