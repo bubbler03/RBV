@@ -25,6 +25,7 @@ homing     = {
 loop_state = {"running": False, "total": 0, "current": 0, "mode": "hub", "program": "", "hub": False}
 layer_info = {"layer_um": 0, "pause_s": 0, "height_mm": 0, "file": ""}
 
+DIR_INVERT   = True           # Drehrichtung umgedreht (18.11.2026: hoch/runter war nach Neuverkabelung vertauscht)
 STEPS_PER_MM = 3200 / 3          # 1/16-Mikroschritt, Tr12 x 3
 PROTOKOLL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "protokolle")
 move_lock  = threading.Lock()
@@ -49,7 +50,7 @@ def do_move_sync(axis_names, steps, direction, delay_end=0.002, stop_event=None)
     ramp_steps  = min(30 if delay_end >= 0.0005 else 150, abs(steps) // 2)   # laengere Rampe ueber 1000 Schritte/s
     devs = [axes[ax] for ax in axis_names if ax in axes]
     for a in devs:
-        a["dir"].on() if direction > 0 else a["dir"].off()
+        a["dir"].on() if (direction > 0) != DIR_INVERT else a["dir"].off()
     sleep(0.001)
     moved = 0
     for i in range(abs(steps)):
@@ -73,7 +74,7 @@ def move_until_stop(pair, direction, speed):
     axis_names = [ax for ax in PAIR_AXES[pair] if ax in axes]
     devs = [axes[ax] for ax in axis_names]
     for a in devs:
-        a["dir"].on() if direction > 0 else a["dir"].off()
+        a["dir"].on() if (direction > 0) != DIR_INVERT else a["dir"].off()
     sleep(0.001)
     start = min(speed * 3, 0.010)          # Anfahrrampe wie bei do_move, gegen Schrittverlust
     i = 0
